@@ -2,6 +2,8 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from models import Model
 from helper import *
 from sklearn.model_selection import train_test_split
+from web.embedding import Embedding
+from web.evaluate import evaluate_on_all
 
 import tensorflow as tf
 import numpy as np
@@ -347,16 +349,16 @@ class SynAlign(Model):
 
     def get_alignment(self, epoch, sess):
 
-        def np_to_string(np_array):
-            str_lst = []
-            for i in range(len(np_array)):
-                temp_array = []
-                for j in range(len(np_array[0])):
-                    if (np_array[i][j]) > 0:
-                        temp_array.append(str(np_array[i][j]))
-                temp_str = " ".join(temp_array)
-                str_lst.append(temp_str)
-            return str_lst
+        # def np_to_string(np_array):
+        #     str_lst = []
+        #     for i in range(len(np_array)):
+        #         temp_array = []
+        #         for j in range(len(np_array[0])):
+        #             if (np_array[i][j]) > 0:
+        #                 temp_array.append(str(np_array[i][j]))
+        #         temp_str = " ".join(temp_array)
+        #         str_lst.append(temp_str)
+        #     return str_lst
 
         cnt = 0
         step = 0
@@ -413,7 +415,23 @@ class SynAlign(Model):
 
         return
 
-    def eval_on_word_embedding(self):
+    def eval_on_word_embedding(self, sess):
+        source_emb, target_emb = sess.run([self.source_emb_table, self.target_emb_table])
+
+        source_voc2vec = {wrd: source_emb[wid] for wrd, wid in self.source_tokenizer.word_index.items()}
+        source_embedding = Embedding.from_dict(source_voc2vec)
+        results = evaluate_on_all(source_embedding)
+        results = {key: round(val[0], 4) for key, val in results.items()}
+        curr_int = np.mean(list(results.values()))
+        self.logger.info('Current Source Word2vec Score: {}'.format(curr_int))
+
+        target_voc2vec = {wrd: target_emb[wid] for wrd, wid in self.target_tokenizer.word_index.items()}
+        target_embedding = Embedding.from_dict(source_voc2vec)
+        results = evaluate_on_all(target_embedding)
+        results = {key: round(val[0], 4) for key, val in results.items()}
+        curr_int = np.mean(list(results.values()))
+        self.logger.info('Current Target Word2vec Score: {}'.format(curr_int))
+
         return
 
     def run_epoch(self, sess, epoch, shuffle=True):
@@ -437,7 +455,8 @@ class SynAlign(Model):
         sess.run(self.train_iter.initializer)
         # self.checkpoint(0, sess)
 
-        self.get_alignment(0, sess)
+        # self.get_alignment(0, sess)
+        self.eval_on_word_embedding(sess)
 
         while 1:
             step = step + 1
