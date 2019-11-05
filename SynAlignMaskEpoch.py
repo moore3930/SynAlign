@@ -166,6 +166,10 @@ class SynAlign(Model):
         self.st_align = tf.arg_max(st_align_score, 2, output_type=tf.int32)
         self.st_align = tf.where(eval_source_mask, self.st_align, tf.zeros(tf.shape(self.st_align), dtype=tf.int32))    # [?, n]
 
+        # for debug
+        self.eval_source_sent = eval_source_sent
+        self.eval_target_sent = eval_target_sent
+
     def add_loss_op(self):
         """
         Computes the loss for learning embeddings
@@ -363,16 +367,39 @@ class SynAlign(Model):
         while 1:
             step = step + 1
             try:
-                st_align, ts_align = sess.run([self.st_align, self.ts_align])
+                st_align, ts_align, s_sent, t_sent =\
+                    sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent])
             except:
                 print('{} Alignments Writing Done ! '.format(cnt))
                 break
 
-            for line in np_to_string(st_align):
-                print(line)
-                fs_out.write(line + '\n')
-            for line in np_to_string(ts_align):
-                ft_out.write(line + '\n')
+            # source sent alignment
+            for i in range(s_sent.shape[0]):
+                s_sent_tmp = []
+                s_align_tmp = []
+                for j in range(s_sent.shape[1]):
+                    if s_sent[i][j] > 0:
+                        s_sent_tmp.append(self.source_id2word[s_sent[i][j]])
+                    if st_align[i][j] > 0:
+                        s_align_tmp.append(str(st_align[i][j]))
+                s_sent_out = " ".join(s_sent_tmp)
+                s_align_out = " ".join(s_align_tmp)
+                fs_out.write(s_sent_out + '\n')
+                fs_out.write(s_align_out + '\n')
+
+            # target sent alignment
+            for i in range(t_sent.shape[0]):
+                t_sent_tmp = []
+                t_align_tmp = []
+                for j in range(t_sent.shape[1]):
+                    if t_sent[i][j] > 0:
+                        t_sent_tmp.append(self.target_id2word[t_sent[i][j]])
+                    if ts_align[i][j] > 0:
+                        t_align_tmp.append(str(ts_align[i][j]))
+                t_sent_out = " ".join(t_sent_tmp)
+                t_align_out = " ".join(t_align_tmp)
+                ft_out.write(t_sent_out + '\n')
+                ft_out.write(t_align_out + '\n')
 
             cnt += self.p.batch_size
             if step % 10 == 0:
@@ -410,7 +437,7 @@ class SynAlign(Model):
         sess.run(self.train_iter.initializer)
         # self.checkpoint(0, sess)
 
-        # self.get_alignment(sess)
+        self.get_alignment(0, sess)
 
         while 1:
             step = step + 1
@@ -508,7 +535,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '-batch',
         dest="batch_size",
-        default=512,
+        default=4,
         type=int,
         help='Batch size')
     parser.add_argument(
