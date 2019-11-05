@@ -425,12 +425,13 @@ class SynAlign(Model):
         curr_int = np.mean(list(results.values()))
         self.logger.info('Current Source Word2vec Score: {}'.format(curr_int))
 
-        target_voc2vec = {wrd: target_emb[wid] for wrd, wid in self.target_tokenizer.word_index.items()}
-        target_embedding = Embedding.from_dict(source_voc2vec)
-        results = evaluate_on_all(target_embedding)
-        results = {key: round(val[0], 4) for key, val in results.items()}
-        curr_int = np.mean(list(results.values()))
-        self.logger.info('Current Target Word2vec Score: {}'.format(curr_int))
+        # # Only EN corpus could be evaluated.
+        # target_voc2vec = {wrd: target_emb[wid] for wrd, wid in self.target_tokenizer.word_index.items()}
+        # target_embedding = Embedding.from_dict(target_voc2vec)
+        # results = evaluate_on_all(target_embedding)
+        # results = {key: round(val[0], 4) for key, val in results.items()}
+        # curr_int = np.mean(list(results.values()))
+        # self.logger.info('Current Target Word2vec Score: {}'.format(curr_int))
 
         return
 
