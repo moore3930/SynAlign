@@ -134,12 +134,12 @@ class SynAlign(Model):
         mask = tf.logical_and(source_mask_tile, target_mask_tile)    # [?, n, m]
 
         ta_score = tf.matmul(target_sent_embed, source_sent_embed, transpose_b=True)    # [?, m, n]
-        ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), ta_score, tf.zeros(tf.shape(ta_score)))    # [?, m, n]
+        ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), ta_score, tf.ones(tf.shape(ta_score), dtype=tf.float32) * -999)    # [?, m, n]
         ta_soft_score = tf.nn.softmax(ta_score)     # [?, m, n]
         source_att_embed = tf.matmul(ta_soft_score, source_sent_embed)  # [?, m, 128]
 
         at_score = tf.transpose(ta_score, perm=[0, 2, 1])   # [?, n, m]
-        at_score = tf.where(mask, at_score, tf.zeros(tf.shape(at_score)))    # [?, n, m]
+        at_score = tf.where(mask, at_score, tf.ones(tf.shape(at_score), dtype=tf.float32) * -999)    # [?, n, m]
         at_soft_score = tf.nn.softmax(at_score)     # [?, n, m]
         target_att_embed = tf.matmul(at_soft_score, target_sent_embed)  # [?, n, 128]
 
@@ -157,13 +157,13 @@ class SynAlign(Model):
         mask = tf.logical_and(source_mask_tile, target_mask_tile)    # [?, n, m]
 
         ta_score = tf.matmul(target_sent_embed, source_sent_embed, transpose_b=True)    # [?, m, n]
-        ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), ta_score, tf.zeros(tf.shape(ta_score)))    # [?, m, n]
+        ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), ta_score, tf.ones(tf.shape(ta_score), dtype=tf.float32) * -999)    # [?, m, n]
         ts_align_score = tf.nn.softmax(ta_score)     # [?, m, n]
         self.ts_align = tf.argmax(ts_align_score, 2, output_type=tf.int32)
         self.ts_align = tf.where(eval_target_mask, self.ts_align, tf.zeros(tf.shape(self.ts_align), dtype=tf.int32))    # [?, m]
 
         at_score = tf.transpose(ta_score, perm=[0, 2, 1])   # [?, n, m]
-        at_score = tf.where(mask, at_score, tf.zeros(tf.shape(at_score)))    # [?, n, m]
+        at_score = tf.where(mask, at_score, tf.ones(tf.shape(at_score), dtype=tf.float32) * -999)    # [?, n, m]
         st_align_score = tf.nn.softmax(at_score)     # [?, n, m]
         self.st_align = tf.arg_max(st_align_score, 2, output_type=tf.int32)
         self.st_align = tf.where(eval_source_mask, self.st_align, tf.zeros(tf.shape(self.st_align), dtype=tf.int32))    # [?, n]
@@ -349,17 +349,6 @@ class SynAlign(Model):
 
     def get_alignment(self, epoch, sess):
 
-        # def np_to_string(np_array):
-        #     str_lst = []
-        #     for i in range(len(np_array)):
-        #         temp_array = []
-        #         for j in range(len(np_array[0])):
-        #             if (np_array[i][j]) > 0:
-        #                 temp_array.append(str(np_array[i][j]))
-        #         temp_str = " ".join(temp_array)
-        #         str_lst.append(temp_str)
-        #     return str_lst
-
         cnt = 0
         step = 0
         sess.run(self.eval_iter.initializer)
@@ -454,10 +443,6 @@ class SynAlign(Model):
         step = 0
         st = time.time()
         sess.run(self.train_iter.initializer)
-        # self.checkpoint(0, sess)
-
-        # self.get_alignment(0, sess)
-        self.eval_on_word_embedding(sess)
 
         while 1:
             step = step + 1
@@ -512,8 +497,10 @@ class SynAlign(Model):
             self.logger.info('Epoch: {}'.format(epoch))
             train_loss = self.run_epoch(sess, epoch)
 
+            self.eval_on_word_embedding(sess)
             self.checkpoint(epoch, sess)
             self.get_alignment(epoch, sess)
+
             self.logger.info(
                 '[Epoch {}]: Training Loss: {:.5}, Best Loss: {:.5}\n'.format(
                     epoch, train_loss, self.best_int_avg))
@@ -532,7 +519,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '-embed',
         dest="embed_loc",
-        default='./embeddings',
+        default=None,
         help='Embedding for initialization')
     parser.add_argument(
         '-embed_dim',
