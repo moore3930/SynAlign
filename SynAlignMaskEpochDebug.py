@@ -69,9 +69,6 @@ class SynAlign(Model):
         target_pos_ids = (target_pos_ids * 100 / target_max_len[:, np.newaxis]).astype(np.int32)     # [?, m]
         target_pos_ids = np.where(target_mask, target_pos_ids, np.zeros(target_pos_ids.shape, dtype=np.int32))
 
-        print(source_pos_ids)
-        print(target_pos_ids)
-
         return source_ids, target_ids, source_pos_ids, target_pos_ids, source_mask, target_mask
 
     def get_batch(self, path, batch_size):
@@ -131,9 +128,9 @@ class SynAlign(Model):
             print("Embedding init done !")
 
         # init pos embedding
-        self.source_pos_emb_table = tf.get_variable(name='pos_emb', shape=[500, self.p.embed_dim],
+        self.source_pos_emb_table = tf.get_variable(name='source_pos_emb', shape=[500, self.p.embed_dim],
                                                     initializer=tf.contrib.layers.xavier_initializer())
-        self.target_pos_emb_table = tf.get_variable(name='pos_emb', shape=[500, self.p.embed_dim],
+        self.target_pos_emb_table = tf.get_variable(name='target_pos_emb', shape=[500, self.p.embed_dim],
                                                     initializer=tf.contrib.layers.xavier_initializer())
         print("Position Embedding init done !")
 
