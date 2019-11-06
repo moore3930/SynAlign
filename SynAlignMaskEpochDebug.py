@@ -236,11 +236,12 @@ class SynAlign(Model):
 
         # loss
         source_loss = tf.nn.weighted_cross_entropy_with_logits(targets=source_labels, logits=source_logits, pos_weight=1.0, name='source_loss')   # [?, num_neg+1, s_len]
-        print(source_labels)
-        print(source_logits)
-        print(source_loss)
+        source_mask_tile = tf.tile(tf.expand_dims(source_mask, 1), [1, tf.shape(source_loss)[1], 1])
+        source_loss = tf.where(source_mask_tile, source_loss, tf.zeros(tf.shape(source_loss)))   # get valid loss
         target_loss = tf.nn.weighted_cross_entropy_with_logits(targets=target_labels, logits=target_logits, pos_weight=1.0, name='target_loss')   # [?, num_neg+1, t_len]
-        # loss = tf.reduce_mean(tf.reduce_sum(source_loss, [1, 2])) + tf.reduce_mean(tf.reduce_sum(target_loss, [1, 2]))
+        target_mask_tile = tf.tile(tf.expand_dims(target_mask, 1), [1, tf.shape(target_loss)[1], 1])
+        target_loss = tf.where(target_mask_tile, target_loss, tf.zeros(tf.shape(target_loss)))   # get valid loss
+
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
 
         # if self.regularizer is not None:
