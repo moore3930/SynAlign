@@ -250,8 +250,8 @@ class SynAlign(Model):
         source_neg_ids = tf.tile(tf.expand_dims(tf.reshape(source_neg_ids, [self.p.batch_size, self.p.num_neg]), 2), [1, 1, tf.shape(source_sent)[1]]) # [?, num_neg, s_len]
         source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_ids)    # [?, num_neg, s_len, 128]
 
-        source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1) # [?, num_neg+1, s_len, 128]
-        target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1) # [?, num_neg+1, t_len, 128]
+        source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
+        target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
 
         # logits
         source_logits = tf.reduce_sum(tf.multiply(source_embed, tf.tile(tf.expand_dims(target_att_embed, 1), [1, self.p.num_neg+1, 1, 1])), 3)  # [?, num_neg+1, s_len]
@@ -433,11 +433,11 @@ class SynAlign(Model):
 
         while 1:
             step = step + 1
-            loss, _ = sess.run([self.loss, self.train_op])
-            # try:
-            #     loss, _ = sess.run([self.loss, self.train_op])
-            # except:
-            #     break
+            # loss, _ = sess.run([self.loss, self.train_op])
+            try:
+                loss, _ = sess.run([self.loss, self.train_op])
+            except:
+                break
             losses.append(loss)
 
             cnt += self.p.batch_size
