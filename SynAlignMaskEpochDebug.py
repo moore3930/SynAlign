@@ -55,16 +55,30 @@ class SynAlign(Model):
         source_mask = source_ids > 0
         target_mask = target_ids > 0
 
-        return source_ids, target_ids, source_mask, target_mask
+        # pos id
+        source_max_len = source_mask.sum(1)
+        target_max_len = target_mask.sum(1)
+
+        source_pos_ids = np.array([[i for i in range(1, source_ids.shape[1] + 1)]])
+        source_pos_ids = np.tile(source_pos_ids, [source_ids.shape[0], 1])
+        source_pos_ids = (source_pos_ids * 100 / source_max_len[:, np.newaxis]).astype(np.int32)     # [?, n]
+        source_pos_ids = np.where(source_mask, source_pos_ids, np.zeros(source_pos_ids.shape, dtype=np.int32))
+
+        target_pos_ids = np.array([[i for i in range(1, target_ids.shape[1] + 1)]])
+        target_pos_ids = np.tile(target_pos_ids, [target_ids.shape[0], 1])
+        target_pos_ids = (target_pos_ids * 100 / target_max_len[:, np.newaxis]).astype(np.int32)     # [?, m]
+        target_pos_ids = np.where(target_mask, target_pos_ids, np.zeros(target_pos_ids.shape, dtype=np.int32))
+
+        return source_ids, target_ids, source_pos_ids, target_pos_ids, source_mask, target_mask
 
     def get_batch(self, path, batch_size):
         dataset = tf.data.TextLineDataset([path])
         dataset = dataset.batch(batch_size)
         iter = dataset.make_initializable_iterator()
         batch = iter.get_next()
-        source_sent, target_sent, source_mask, target_mask = \
-            tf.py_func(self.batch_process, [batch], [tf.int32, tf.int32, tf.bool, tf.bool])
-        return source_sent, target_sent, source_mask, target_mask, iter
+        source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask = \
+            tf.py_func(self.batch_process, [batch], [tf.int32, tf.int32, tf.int32, tf.int32, tf.bool, tf.bool])
+        return source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask, iter
 
     def load_data(self):
         self.vocab_source_size = len(self.source_tokenizer.word_index) + 1
@@ -108,12 +122,17 @@ class SynAlign(Model):
             # self.target_emb_table = tf.get_variable(name='tar_emb', shape=[self.vocab_target_size, 128],
             #                                    initializer=tf.random_normal_initializer(mean=0, stddev=1))
             self.source_emb_table = tf.get_variable(name='inp_emb', shape=[self.vocab_source_size, self.p.embed_dim],
-                                               initializer=tf.contrib.layers.xavier_initializer())
+                                                    initializer=tf.contrib.layers.xavier_initializer())
             self.target_emb_table = tf.get_variable(name='tar_emb', shape=[self.vocab_target_size, self.p.embed_dim],
-                                               initializer=tf.contrib.layers.xavier_initializer())
+                                                    initializer=tf.contrib.layers.xavier_initializer())
             print("Embedding init done !")
 
-    def add_model(self, source_sent, target_sent, source_mask, target_mask):
+        # init pos embedding
+        self.pos_emb_table = tf.get_variable(name='pos_emb', shape=[500, self.p.embed_dim],
+                                             initializer=tf.contrib.layers.xavier_initializer())
+        print("Position Embedding init done !")
+
+    def add_model(self, source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask):
         """
         Creates the Computational Graph
 
@@ -125,13 +144,20 @@ class SynAlign(Model):
         nn_out:		Logits for each bag in the batch
         """
 
+        # merge word embedding & position embedding
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
+        source_pos_embed = tf.nn.embedding_lookup(self.pos_emb_table, source_pos_ids)   # [?, n, 128]
+        source_sent_embed = source_sent_embed + source_pos_embed
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
+        target_pos_embed = tf.nn.embedding_lookup(self.pos_emb_table, target_pos_ids)   # [?, m, 128]
+        target_sent_embed = target_sent_embed + target_pos_embed
 
+        # mask
         source_mask_tile = tf.tile(tf.expand_dims(source_mask, 2), [1, 1, tf.shape(target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(target_mask, 1), [1, tf.shape(source_mask)[1], 1])    # [?, n, m]
         mask = tf.logical_and(source_mask_tile, target_mask_tile)    # [?, n, m]
 
+        # get attention context vectors
         ta_score = tf.matmul(target_sent_embed, source_sent_embed, transpose_b=True)    # [?, m, n]
         ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), ta_score, tf.ones(tf.shape(ta_score), dtype=tf.float32) * -999)    # [?, m, n]
         ta_soft_score = tf.nn.softmax(ta_score)     # [?, m, n]
@@ -145,11 +171,16 @@ class SynAlign(Model):
         return source_sent_embed, source_att_embed, target_sent_embed, target_att_embed
 
     def build_eval_graph(self):
-        eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask, self.eval_iter =\
+        eval_source_sent, eval_target_sent, source_pos_ids, target_pos_ids, eval_source_mask, eval_target_mask, self.eval_iter =\
             self.get_batch(self.eval_path_to_file, self.p.batch_size)
 
+        # merge word embedding & position embedding
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
+        source_pos_embed = tf.nn.embedding_lookup(self.pos_emb_table, source_pos_ids)   # [?, n, 128]
+        source_sent_embed = source_sent_embed + source_pos_embed
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
+        target_pos_embed = tf.nn.embedding_lookup(self.pos_emb_table, target_pos_ids)   # [?, m, 128]
+        target_sent_embed = target_sent_embed + target_pos_embed
 
         source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(eval_target_mask, 1), [1, tf.shape(eval_source_mask)[1], 1])    # [?, n, m]
@@ -185,10 +216,10 @@ class SynAlign(Model):
         """
 
         # train graph
-        source_sent, target_sent, source_mask, target_mask, self.train_iter =\
+        source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask, self.train_iter =\
             self.get_batch(self.path_to_file, self.p.batch_size)
         source_sent_embed, source_att_embed, target_sent_embed, target_att_embed =\
-            self.add_model(source_sent, target_sent, source_mask, target_mask)
+            self.add_model(source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask)
 
         target_words = tf.reshape(target_sent, [-1, 1])    # [? * m]
         source_words = tf.reshape(source_sent, [-1, 1])    # [? * n]
@@ -402,10 +433,11 @@ class SynAlign(Model):
 
         while 1:
             step = step + 1
-            try:
-                loss, _ = sess.run([self.loss, self.train_op])
-            except:
-                break
+            loss, _ = sess.run([self.loss, self.train_op])
+            # try:
+            #     loss, _ = sess.run([self.loss, self.train_op])
+            # except:
+            #     break
             losses.append(loss)
 
             cnt += self.p.batch_size
