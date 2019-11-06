@@ -69,6 +69,9 @@ class SynAlign(Model):
         target_pos_ids = (target_pos_ids * 100 / target_max_len[:, np.newaxis]).astype(np.int32)     # [?, m]
         target_pos_ids = np.where(target_mask, target_pos_ids, np.zeros(target_pos_ids.shape, dtype=np.int32))
 
+        print(source_pos_ids)
+        print(target_pos_ids)
+
         return source_ids, target_ids, source_pos_ids, target_pos_ids, source_mask, target_mask
 
     def get_batch(self, path, batch_size):
@@ -128,8 +131,10 @@ class SynAlign(Model):
             print("Embedding init done !")
 
         # init pos embedding
-        self.pos_emb_table = tf.get_variable(name='pos_emb', shape=[500, self.p.embed_dim],
-                                             initializer=tf.contrib.layers.xavier_initializer())
+        self.source_pos_emb_table = tf.get_variable(name='pos_emb', shape=[500, self.p.embed_dim],
+                                                    initializer=tf.contrib.layers.xavier_initializer())
+        self.target_pos_emb_table = tf.get_variable(name='pos_emb', shape=[500, self.p.embed_dim],
+                                                    initializer=tf.contrib.layers.xavier_initializer())
         print("Position Embedding init done !")
 
     def add_model(self, source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask):
@@ -146,10 +151,10 @@ class SynAlign(Model):
 
         # merge word embedding & position embedding
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
-        source_pos_embed = tf.nn.embedding_lookup(self.pos_emb_table, source_pos_ids)   # [?, n, 128]
+        source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, source_pos_ids)   # [?, n, 128]
         source_sent_embed = source_sent_embed + source_pos_embed
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
-        target_pos_embed = tf.nn.embedding_lookup(self.pos_emb_table, target_pos_ids)   # [?, m, 128]
+        target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, target_pos_ids)   # [?, m, 128]
         target_sent_embed = target_sent_embed + target_pos_embed
 
         # mask
@@ -176,10 +181,10 @@ class SynAlign(Model):
 
         # merge word embedding & position embedding
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
-        source_pos_embed = tf.nn.embedding_lookup(self.pos_emb_table, source_pos_ids)   # [?, n, 128]
+        source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, source_pos_ids)   # [?, n, 128]
         source_sent_embed = source_sent_embed + source_pos_embed
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
-        target_pos_embed = tf.nn.embedding_lookup(self.pos_emb_table, target_pos_ids)   # [?, m, 128]
+        target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, target_pos_ids)   # [?, m, 128]
         target_sent_embed = target_sent_embed + target_pos_embed
 
         source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
