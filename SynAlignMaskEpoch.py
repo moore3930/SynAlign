@@ -57,13 +57,6 @@ class SynAlign(Model):
 
         return source_ids, target_ids, source_mask, target_mask
 
-    # def create_dataset(self, path, num_examples):
-    #     dataset = tf.data.TextLineDataset([path])
-    #     dataset = dataset.batch(num_examples)
-    #     # dataset = dataset.shuffle(1000).batch(num_examples)
-    #
-    #     return dataset
-
     def get_batch(self, path, batch_size):
         dataset = tf.data.TextLineDataset([path])
         dataset = dataset.batch(batch_size)
@@ -107,12 +100,18 @@ class SynAlign(Model):
             self.target_emb_table = tf.get_variable(
                 'target_emb',
                 initializer=target_embed_init)
-            print('embeddings loading done ! ')
+            print('Embeddings loading done ! ')
         else:
+            print("Init embedding ... ")
+            # self.source_emb_table = tf.get_variable(name='inp_emb', shape=[self.vocab_source_size, 128],
+            #                                    initializer=tf.random_normal_initializer(mean=0, stddev=1))
+            # self.target_emb_table = tf.get_variable(name='tar_emb', shape=[self.vocab_target_size, 128],
+            #                                    initializer=tf.random_normal_initializer(mean=0, stddev=1))
             self.source_emb_table = tf.get_variable(name='inp_emb', shape=[self.vocab_source_size, 128],
-                                               initializer=tf.random_normal_initializer(mean=0, stddev=1))
+                                               initializer=tf.contrib.layers.xavier_initializer())
             self.target_emb_table = tf.get_variable(name='tar_emb', shape=[self.vocab_target_size, 128],
-                                               initializer=tf.random_normal_initializer(mean=0, stddev=1))
+                                               initializer=tf.contrib.layers.xavier_initializer())
+            print("Embedding init done !")
 
     def add_model(self, source_sent, target_sent, source_mask, target_mask):
         """
@@ -159,13 +158,13 @@ class SynAlign(Model):
         ta_score = tf.matmul(target_sent_embed, source_sent_embed, transpose_b=True)    # [?, m, n]
         ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), ta_score, tf.ones(tf.shape(ta_score), dtype=tf.float32) * -999)    # [?, m, n]
         ts_align_score = tf.nn.softmax(ta_score)     # [?, m, n]
-        self.ts_align = tf.argmax(ts_align_score, 2, output_type=tf.int32)
+        self.ts_align = tf.argmax(ts_align_score, 2, output_type=tf.int32) + 1
         self.ts_align = tf.where(eval_target_mask, self.ts_align, tf.zeros(tf.shape(self.ts_align), dtype=tf.int32))    # [?, m]
 
         at_score = tf.transpose(ta_score, perm=[0, 2, 1])   # [?, n, m]
         at_score = tf.where(mask, at_score, tf.ones(tf.shape(at_score), dtype=tf.float32) * -999)    # [?, n, m]
         st_align_score = tf.nn.softmax(at_score)     # [?, n, m]
-        self.st_align = tf.arg_max(st_align_score, 2, output_type=tf.int32)
+        self.st_align = tf.arg_max(st_align_score, 2, output_type=tf.int32) + 1
         self.st_align = tf.where(eval_source_mask, self.st_align, tf.zeros(tf.shape(self.st_align), dtype=tf.int32))    # [?, n]
 
         # for debug
@@ -271,50 +270,6 @@ class SynAlign(Model):
             train_op = optimizer.minimize(loss)
 
         return train_op
-
-    def __init__(self, params):
-
-        # data file
-        self.path_to_file = "./data/en-de-format.txt"
-        self.eval_path_to_file = "./data/en-de-eval.txt"
-
-        # create tokenizer
-        self.create_tokenizer()
-
-        self.p = params
-
-        if not os.path.isdir(self.p.log_dir):
-            os.system('mkdir {}'.format(self.p.log_dir))
-        if not os.path.isdir(self.p.emb_dir):
-            os.system('mkdir {}'.format(self.p.emb_dir))
-
-        self.logger = get_logger(
-            self.p.name,
-            self.p.log_dir,
-            self.p.config_dir)
-
-        self.logger.info(vars(self.p))
-        pprint(vars(self.p))
-        self.p.batch_size = self.p.batch_size
-
-        if self.p.l2 == 0.0:
-            self.regularizer = None
-        else:
-            self.regularizer = tf.contrib.layers.l2_regularizer(
-                scale=self.p.l2)
-
-        self.load_data()
-        self.init_embedding()
-        self.build_eval_graph()
-
-        self.loss = self.add_loss_op()
-
-        if self.p.opt == 'adam':
-            self.train_op = self.add_optimizer(self.loss)
-        else:
-            self.train_op = self.add_optimizer(self.loss, isAdam=False)
-
-        self.merged_summ = tf.summary.merge_all()
 
     def checkpoint(self, epoch, sess):
 
@@ -504,6 +459,50 @@ class SynAlign(Model):
             self.logger.info(
                 '[Epoch {}]: Training Loss: {:.5}, Best Loss: {:.5}\n'.format(
                     epoch, train_loss, self.best_int_avg))
+
+    def __init__(self, params):
+
+        # data file
+        self.path_to_file = "./data/en-de-format.txt"
+        self.eval_path_to_file = "./data/en-de-eval.txt"
+
+        # create tokenizer
+        self.create_tokenizer()
+
+        self.p = params
+
+        if not os.path.isdir(self.p.log_dir):
+            os.system('mkdir {}'.format(self.p.log_dir))
+        if not os.path.isdir(self.p.emb_dir):
+            os.system('mkdir {}'.format(self.p.emb_dir))
+
+        self.logger = get_logger(
+            self.p.name,
+            self.p.log_dir,
+            self.p.config_dir)
+
+        self.logger.info(vars(self.p))
+        pprint(vars(self.p))
+        self.p.batch_size = self.p.batch_size
+
+        if self.p.l2 == 0.0:
+            self.regularizer = None
+        else:
+            self.regularizer = tf.contrib.layers.l2_regularizer(
+                scale=self.p.l2)
+
+        self.load_data()
+        self.init_embedding()
+        self.build_eval_graph()
+
+        self.loss = self.add_loss_op()
+
+        if self.p.opt == 'adam':
+            self.train_op = self.add_optimizer(self.loss)
+        else:
+            self.train_op = self.add_optimizer(self.loss, isAdam=False)
+
+        self.merged_summ = tf.summary.merge_all()
 
 
 if __name__ == "__main__":
