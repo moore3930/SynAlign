@@ -149,10 +149,10 @@ class SynAlign(Model):
         # merge word embedding & position embedding
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
         source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, source_pos_ids)   # [?, n, 128]
-        source_sent_embed = source_sent_embed + source_pos_embed
+        source_sent_embed = source_sent_embed + self.p.alpha * source_pos_embed
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
         target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, target_pos_ids)   # [?, m, 128]
-        target_sent_embed = target_sent_embed + target_pos_embed
+        target_sent_embed = target_sent_embed + self.p.alpha * target_pos_embed
 
         # mask
         source_mask_tile = tf.tile(tf.expand_dims(source_mask, 2), [1, 1, tf.shape(target_mask)[1]])    # [?, n, m]
@@ -179,10 +179,10 @@ class SynAlign(Model):
         # merge word embedding & position embedding
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
         source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, source_pos_ids)   # [?, n, 128]
-        source_sent_embed = source_sent_embed + source_pos_embed
+        source_sent_embed = source_sent_embed + self.p.alpha * source_pos_embed
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
         target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, target_pos_ids)   # [?, m, 128]
-        target_sent_embed = target_sent_embed + target_pos_embed
+        target_sent_embed = target_sent_embed + self.p.alpha * target_pos_embed
 
         source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(eval_target_mask, 1), [1, tf.shape(eval_source_mask)[1], 1])    # [?, n, m]
@@ -627,6 +627,12 @@ if __name__ == "__main__":
         default=1.0,
         type=float,
         help='Dropout for full connected layer (Keep probability')
+    parser.add_argument(
+        '-alpha',
+        dest="alpha",
+        default=0.3,
+        type=float,
+        help='Alpha for concat position embedding')
     parser.add_argument('-opt', dest="opt", default='adam',
                         help='Optimizer to use for training')
     parser.add_argument(
