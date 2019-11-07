@@ -187,10 +187,11 @@ class SynAlign(Model):
 
         # merge word embedding & position embedding
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
-        source_pos_embed = tf.matmul(source_pos_ids, self.source_pos_emb_W)   # [?, n, 128]
+        source_pos_embed = tf.matmul(source_pos_ids, tf.tile(tf.expand_dims(self.source_pos_emb_W, 0), [tf.shape(source_pos_ids)[0], 1, 1]))   # [?, n, 128]
         source_sent_embed = source_sent_embed + source_pos_embed
+
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
-        target_pos_embed = tf.matmul(target_pos_ids, self.target_pos_emb_W)   # [?, m, 128]
+        target_pos_embed = tf.matmul(target_pos_ids, tf.tile(tf.expand_dims(self.target_pos_emb_W, 0), [tf.shape(target_pos_ids)[0], 1, 1]))   # [?, n, 128]
         target_sent_embed = target_sent_embed + target_pos_embed
 
         source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
@@ -355,14 +356,14 @@ class SynAlign(Model):
 
         while 1:
             step = step + 1
-            st_align, ts_align, s_sent, t_sent = \
-                sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent])
-            # try:
-            #     st_align, ts_align, s_sent, t_sent =\
-            #         sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent])
-            # except:
-            #     print('{} Alignments Writing Done ! '.format(cnt))
-            #     break
+            # st_align, ts_align, s_sent, t_sent = \
+            #     sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent])
+            try:
+                st_align, ts_align, s_sent, t_sent =\
+                    sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent])
+            except:
+                print('{} Alignments Writing Done ! '.format(cnt))
+                break
 
             # source sent alignment
             for i in range(s_sent.shape[0]):
@@ -443,7 +444,6 @@ class SynAlign(Model):
         step = 0
         st = time.time()
         sess.run(self.train_iter.initializer)
-        self.get_alignment(epoch, sess)
 
         while 1:
             step = step + 1
