@@ -28,6 +28,24 @@ class SynAlign(Model):
         print("size of source tokenizer is {}".format(len(self.source_tokenizer.word_index)))
         print("size of target tokenizer is {}".format(len(self.target_tokenizer.word_index)))
 
+        self.vocab_source_size = len(self.source_tokenizer.word_index) + 1
+        self.vocab_target_size = len(self.target_tokenizer.word_index) + 1
+        print(list(self.source_tokenizer.word_index.items())[:100])
+        print(list(self.target_tokenizer.word_index.items())[:100])
+
+        # note that index 0 is reserved, never assigned to an existing word
+        self.source_id2word = {v: k for k, v in self.source_tokenizer.word_index.items()}
+        self.target_id2word = {v: k for k, v in self.target_tokenizer.word_index.items()}
+        print(list(self.source_id2word.items())[:100])
+        print(list(self.target_id2word.items())[:100])
+
+        self.vocab_source_freq = [self.source_tokenizer.word_counts[self.source_id2word[_id]]
+                                  for _id in range(1, self.vocab_source_size)]
+        self.vocab_source_freq.insert(0, 0)
+        self.vocab_target_freq = [self.target_tokenizer.word_counts[self.target_id2word[_id]]
+                                  for _id in range(1, self.vocab_target_size)]
+        self.vocab_target_freq.insert(0, 0)
+
     def batch_process(self, lines):
         # line = line.strip().lower()
         line = [l.strip().lower().split(b'\t') for l in lines]
@@ -65,24 +83,6 @@ class SynAlign(Model):
         source_sent, target_sent, source_mask, target_mask = \
             tf.py_func(self.batch_process, [batch], [tf.int32, tf.int32, tf.bool, tf.bool])
         return source_sent, target_sent, source_mask, target_mask, iter
-
-    def load_data(self):
-        self.vocab_source_size = len(self.source_tokenizer.word_index) + 1
-        self.vocab_target_size = len(self.target_tokenizer.word_index) + 1
-        print(list(self.source_tokenizer.word_index.items())[:100])
-        print(list(self.target_tokenizer.word_index.items())[:100])
-
-        self.source_id2word = {v: k for k, v in self.source_tokenizer.word_index.items()}
-        self.target_id2word = {v: k for k, v in self.target_tokenizer.word_index.items()}
-        print(list(self.source_id2word.items())[:100])
-        print(list(self.target_id2word.items())[:100])
-
-        self.vocab_source_freq = [self.source_tokenizer.word_counts[self.source_id2word[_id]]
-                                  for _id in range(1, self.vocab_source_size)]
-        self.vocab_source_freq.insert(0, 0)
-        self.vocab_target_freq = [self.target_tokenizer.word_counts[self.target_id2word[_id]]
-                                  for _id in range(1, self.vocab_target_size)]
-        self.vocab_target_freq.insert(0, 0)
 
     def init_embedding(self):
         # when target embeddings for initialization is assigned
@@ -171,7 +171,7 @@ class SynAlign(Model):
         self.eval_source_sent = eval_source_sent
         self.eval_target_sent = eval_target_sent
 
-    def add_loss_op(self):
+    def build_train_graph(self):
         """
         Computes the loss for learning embeddings
 
@@ -213,14 +213,14 @@ class SynAlign(Model):
             unigrams=self.vocab_source_freq
         )
         target_neg_ids = tf.cast(target_neg_ids, dtype=tf.int32)    # [? * neg_num]
-        target_neg_ids = tf.tile(tf.expand_dims(tf.reshape(target_neg_ids, [self.p.batch_size, self.p.num_neg]), 2), [1, 1, tf.shape(target_sent)[1]]) # [?, num_neg, t_len]
+        target_neg_ids = tf.tile(tf.expand_dims(tf.reshape(target_neg_ids, [self.p.batch_size, self.p.num_neg]), 2), [1, 1, tf.shape(target_sent)[1]])  # [?, num_neg, t_len]
         target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
         source_neg_ids = tf.cast(source_neg_ids, dtype=tf.int32)
-        source_neg_ids = tf.tile(tf.expand_dims(tf.reshape(source_neg_ids, [self.p.batch_size, self.p.num_neg]), 2), [1, 1, tf.shape(source_sent)[1]]) # [?, num_neg, s_len]
+        source_neg_ids = tf.tile(tf.expand_dims(tf.reshape(source_neg_ids, [self.p.batch_size, self.p.num_neg]), 2), [1, 1, tf.shape(source_sent)[1]])  # [?, num_neg, s_len]
         source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_ids)    # [?, num_neg, s_len, 128]
 
-        source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1) # [?, num_neg+1, s_len, 128]
-        target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1) # [?, num_neg+1, t_len, 128]
+        source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
+        target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
 
         # logits
         source_logits = tf.reduce_sum(tf.multiply(source_embed, tf.tile(tf.expand_dims(target_att_embed, 1), [1, self.p.num_neg+1, 1, 1])), 3)  # [?, num_neg+1, s_len]
@@ -236,11 +236,12 @@ class SynAlign(Model):
 
         # loss
         source_loss = tf.nn.weighted_cross_entropy_with_logits(targets=source_labels, logits=source_logits, pos_weight=1.0, name='source_loss')   # [?, num_neg+1, s_len]
-        print(source_labels)
-        print(source_logits)
-        print(source_loss)
+        source_mask_tile = tf.tile(tf.expand_dims(source_mask, 1), [1, tf.shape(source_loss)[1], 1])
+        source_loss = tf.where(source_mask_tile, source_loss, tf.zeros(tf.shape(source_loss)))   # get valid loss
         target_loss = tf.nn.weighted_cross_entropy_with_logits(targets=target_labels, logits=target_logits, pos_weight=1.0, name='target_loss')   # [?, num_neg+1, t_len]
-        # loss = tf.reduce_mean(tf.reduce_sum(source_loss, [1, 2])) + tf.reduce_mean(tf.reduce_sum(target_loss, [1, 2]))
+        target_mask_tile = tf.tile(tf.expand_dims(target_mask, 1), [1, tf.shape(target_loss)[1], 1])
+        target_loss = tf.where(target_mask_tile, target_loss, tf.zeros(tf.shape(target_loss)))   # get valid loss
+
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
 
         # if self.regularizer is not None:
@@ -248,7 +249,9 @@ class SynAlign(Model):
         #         self.regularizer, tf.get_collection(
         #             tf.GraphKeys.REGULARIZATION_LOSSES))
 
-        return loss
+        self.loss = loss
+
+        return
 
     def add_optimizer(self, loss, isAdam=True):
         """
@@ -491,11 +494,9 @@ class SynAlign(Model):
             self.regularizer = tf.contrib.layers.l2_regularizer(
                 scale=self.p.l2)
 
-        self.load_data()
         self.init_embedding()
         self.build_eval_graph()
-
-        self.loss = self.add_loss_op()
+        self.build_train_graph()
 
         if self.p.opt == 'adam':
             self.train_op = self.add_optimizer(self.loss)
@@ -510,141 +511,45 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='SynAlign')
 
     parser.add_argument('-gpu', dest="gpu", default='0', help='GPU to use')
-    parser.add_argument(
-        '-name',
-        dest="name",
-        default='test_run',
-        help='Name of the run')
-    parser.add_argument(
-        '-embed',
-        dest="embed_loc",
-        default=None,
-        help='Embedding for initialization')
-    parser.add_argument(
-        '-embed_dim',
-        dest="embed_dim",
-        default=128,
-        type=int,
-        help='Embedding Dimension')
-    parser.add_argument(
-        '-total',
-        dest="total_sents",
-        default=56974869,
-        type=int,
-        help='Total number of sentences in file')
-    parser.add_argument(
-        '-lr',
-        dest="lr",
-        default=0.001,
-        type=float,
-        help='Learning rate')
-    parser.add_argument(
-        '-batch',
-        dest="batch_size",
-        default=4,
-        type=int,
-        help='Batch size')
-    parser.add_argument(
-        '-epoch',
-        dest="max_epochs",
-        default=50,
-        type=int,
-        help='Max epochs')
-    parser.add_argument(
-        '-l2',
-        dest="l2",
-        default=0.00001,
-        type=float,
-        help='L2 regularization')
-    parser.add_argument(
-        '-seed',
-        dest="seed",
-        default=1234,
-        type=int,
-        help='Seed for randomization')
-    parser.add_argument(
-        '-sample',
-        dest="sample",
-        default=1e-4,
-        type=float,
-        help='Subsampling parameter')
-    parser.add_argument(
-        '-neg',
-        dest="num_neg",
-        default=10,
-        type=int,
-        help='Number of negative samples')
-    parser.add_argument(
-        '-side_int',
-        dest="side_int",
-        default=10000,
-        type=int,
-        help='Number of negative samples')
-    parser.add_argument(
-        '-gcn_layer',
-        dest="gcn_layer",
-        default=1,
-        type=int,
-        help='Number of layers in GCN over dependency tree')
-    parser.add_argument(
-        '-drop',
-        dest="dropout",
-        default=1.0,
-        type=float,
-        help='Dropout for full connected layer (Keep probability')
-    parser.add_argument('-opt', dest="opt", default='adam',
-                        help='Optimizer to use for training')
-    parser.add_argument(
-        '-dump',
-        dest="onlyDump",
-        action='store_true',
-        help='Dump context and embed matrix')
-    parser.add_argument(
-        '-context',
-        dest="context",
-        action='store_true',
-        help='Include sequential context edges (default: False)')
-    parser.add_argument(
-        '-restore',
-        dest="restore",
-        action='store_true',
-        help='Restore from the previous best saved model')
-    parser.add_argument(
-        '-embdir',
-        dest="emb_dir",
-        default='./embeddings/',
-        help='Directory for storing learned embeddings')
-    parser.add_argument(
-        '-logdir',
-        dest="log_dir",
-        default='./log/',
-        help='Log directory')
-    parser.add_argument(
-        '-config',
-        dest="config_dir",
-        default='./config/',
-        help='Config directory')
+    parser.add_argument('-name', dest="name", default='test_run', help='Name of the run')
+    parser.add_argument('-embed', dest="embed_loc", default=None, help='Embedding for initialization')
+    parser.add_argument('-embed_dim', dest="embed_dim", default=128, type=int, help='Embedding Dimension')
+    parser.add_argument('-total', dest="total_sents", default=56974869, type=int,
+                        help='Total number of sentences in file')
+    parser.add_argument('-lr', dest="lr", default=0.001, type=float, help='Learning rate')
+    parser.add_argument('-batch', dest="batch_size", default=64, type=int, help='Batch size')
+    parser.add_argument('-epoch', dest="max_epochs", default=50, type=int, help='Max epochs')
+    parser.add_argument('-l2', dest="l2", default=0.00001, type=float, help='L2 regularization')
+    parser.add_argument('-seed', dest="seed", default=1234, type=int, help='Seed for randomization')
+    parser.add_argument('-sample', dest="sample", default=1e-4, type=float, help='Subsampling parameter')
+    parser.add_argument('-neg', dest="num_neg", default=10, type=int, help='Number of negative samples')
+    parser.add_argument('-side_int', dest="side_int", default=10000, type=int, help='Number of negative samples')
+    parser.add_argument('-gcn_layer', dest="gcn_layer", default=1, type=int,
+                        help='Number of layers in GCN over dependency tree')
+    parser.add_argument('-drop', dest="dropout", default=1.0, type=float,
+                        help='Dropout for full connected layer (Keep probability')
+    parser.add_argument('-opt', dest="opt", default='adam', help='Optimizer to use for training')
+    parser.add_argument('-dump', dest="onlyDump", action='store_true', help='Dump context and embed matrix')
+    parser.add_argument('-context', dest="context", action='store_true',
+                        help='Include sequential context edges (default: False)')
+    parser.add_argument('-restore', dest="restore", action='store_true',
+                        help='Restore from the previous best saved model')
+    parser.add_argument('-embdir', dest="emb_dir", default='./embeddings/',
+                        help='Directory for storing learned embeddings')
+    parser.add_argument('-logdir', dest="log_dir", default='./log/', help='Log directory')
+    parser.add_argument('-config', dest="config_dir", default='./config/', help='Config directory')
 
     # Added these two arguments to enable others to personalize the training set. Otherwise, the programme may suffer from memory overflow easily.
     # It is suggested that the -maxlen be set no larger than 100.
-    parser.add_argument(
-        '-maxsentlen',
-        dest="max_sent_len",
-        default=50,
-        type=int,
-        help='Max length of the sentences in data.txt (default: 40)')
-    parser.add_argument(
-        '-maxdeplen',
-        dest="max_dep_len",
-        default=800,
-        type=int,
-        help='Max length of the dependency relations in data.txt (default: 800)')
+    parser.add_argument('-maxsentlen', dest="max_sent_len", default=50, type=int,
+                        help='Max length of the sentences in data.txt (default: 40)')
+    parser.add_argument('-maxdeplen', dest="max_dep_len", default=800, type=int,
+                        help='Max length of the dependency relations in data.txt (default: 800)')
 
     args = parser.parse_args()
 
     if not args.restore:
-        args.name = args.name + '_' + \
-            time.strftime("%d_%m_%Y") + '_' + time.strftime("%H:%M:%S")
+        args.name = args.name + '_' + time.strftime("%d_%m_%Y") + '_' + time.strftime("%H:%M:%S")
 
     tf.set_random_seed(args.seed)
     random.seed(args.seed)
