@@ -355,12 +355,14 @@ class SynAlign(Model):
 
         while 1:
             step = step + 1
-            try:
-                st_align, ts_align, s_sent, t_sent =\
-                    sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent])
-            except:
-                print('{} Alignments Writing Done ! '.format(cnt))
-                break
+            st_align, ts_align, s_sent, t_sent = \
+                sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent])
+            # try:
+            #     st_align, ts_align, s_sent, t_sent =\
+            #         sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent])
+            # except:
+            #     print('{} Alignments Writing Done ! '.format(cnt))
+            #     break
 
             # source sent alignment
             for i in range(s_sent.shape[0]):
