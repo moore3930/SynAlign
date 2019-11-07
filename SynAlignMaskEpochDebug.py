@@ -61,13 +61,13 @@ class SynAlign(Model):
 
         source_pos_ids = np.array([[i for i in range(1, source_ids.shape[1] + 1)]])
         source_pos_ids = np.tile(source_pos_ids, [source_ids.shape[0], 1])
-        source_pos_ids = (source_pos_ids * 100 / source_max_len[:, np.newaxis]).astype(np.int32)     # [?, n]
-        source_pos_ids = np.where(source_mask, source_pos_ids, np.zeros(source_pos_ids.shape, dtype=np.int32))
+        source_pos_ids = ((source_pos_ids * 2 * np.pi) / source_max_len[:, np.newaxis]).astype(np.int32)     # [?, n]
+        source_pos_ids = np.array([[[np.cos(d), np.sin(d)] for d in line] for line in source_pos_ids], dtype=np.float32)      # [?, n, 2]
 
         target_pos_ids = np.array([[i for i in range(1, target_ids.shape[1] + 1)]])
         target_pos_ids = np.tile(target_pos_ids, [target_ids.shape[0], 1])
-        target_pos_ids = (target_pos_ids * 100 / target_max_len[:, np.newaxis]).astype(np.int32)     # [?, m]
-        target_pos_ids = np.where(target_mask, target_pos_ids, np.zeros(target_pos_ids.shape, dtype=np.int32))
+        target_pos_ids = ((target_pos_ids * 2 * np.pi) / target_max_len[:, np.newaxis]).astype(np.int32)     # [?, m]
+        target_pos_ids = np.array([[[np.cos(d), np.sin(d)] for d in line] for line in target_pos_ids], dtype=np.float32)      # [?, m, 2]
 
         return source_ids, target_ids, source_pos_ids, target_pos_ids, source_mask, target_mask
 
@@ -77,7 +77,7 @@ class SynAlign(Model):
         iter = dataset.make_initializable_iterator()
         batch = iter.get_next()
         source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask = \
-            tf.py_func(self.batch_process, [batch], [tf.int32, tf.int32, tf.int32, tf.int32, tf.bool, tf.bool])
+            tf.py_func(self.batch_process, [batch], [tf.int32, tf.int32, tf.float32, tf.float32, tf.bool, tf.bool])
         return source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask, iter
 
     def load_data(self):
@@ -128,10 +128,14 @@ class SynAlign(Model):
             print("Embedding init done !")
 
         # init pos embedding
-        self.source_pos_emb_table = tf.get_variable(name='source_pos_emb', shape=[500, int(self.p.embed_dim / 10)],
-                                                    initializer=tf.contrib.layers.xavier_initializer())
-        self.target_pos_emb_table = tf.get_variable(name='target_pos_emb', shape=[500, int(self.p.embed_dim / 10)],
-                                                    initializer=tf.contrib.layers.xavier_initializer())
+        self.source_pos_emb_W = tf.get_variable(name='source_W', shape=[2, self.p.embed_dim],
+                                                initializer=tf.contrib.layers.xavier_initializer())
+        self.target_pos_emb_W = tf.get_variable(name='target_W', shape=[2, self.p.embed_dim],
+                                                initializer=tf.contrib.layers.xavier_initializer())
+        # self.source_pos_emb_table = tf.get_variable(name='source_pos_emb', shape=[500, int(self.p.embed_dim / 10)],
+        #                                             initializer=tf.contrib.layers.xavier_initializer())
+        # self.target_pos_emb_table = tf.get_variable(name='target_pos_emb', shape=[500, int(self.p.embed_dim / 10)],
+        #                                             initializer=tf.contrib.layers.xavier_initializer())
         print("Position Embedding init done !")
 
     def add_model(self, source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask):
@@ -148,11 +152,12 @@ class SynAlign(Model):
 
         # merge word embedding & position embedding
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
-        source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, source_pos_ids)   # [?, n, 12]
-        source_sent_embed = tf.concat([source_sent_embed, source_pos_embed], 2)
+        source_pos_embed = tf.matmul(source_pos_ids, tf.tile(tf.expand_dims(self.source_pos_emb_W, 0), [tf.shape(source_pos_ids)[0], 1, 1]))   # [?, n, 128]
+        source_sent_embed = source_sent_embed + source_pos_embed
+
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
-        target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, target_pos_ids)   # [?, m, 12]
-        target_sent_embed = tf.concat([target_sent_embed, target_pos_embed], 2)
+        target_pos_embed = tf.matmul(target_pos_ids, tf.tile(tf.expand_dims(self.target_pos_emb_W, 0), [tf.shape(target_pos_ids)[0], 1, 1]))   # [?, n, 128]
+        target_sent_embed = target_sent_embed + target_pos_embed
 
         # mask
         source_mask_tile = tf.tile(tf.expand_dims(source_mask, 2), [1, 1, tf.shape(target_mask)[1]])    # [?, n, m]
@@ -178,10 +183,10 @@ class SynAlign(Model):
 
         # merge word embedding & position embedding
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
-        source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, source_pos_ids)   # [?, n, 128]
+        source_pos_embed = tf.matmul(source_pos_ids, self.source_pos_emb_W)   # [?, n, 128]
         source_sent_embed = source_sent_embed + source_pos_embed
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
-        target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, target_pos_ids)   # [?, m, 128]
+        target_pos_embed = tf.matmul(target_pos_ids, self.target_pos_emb_W)   # [?, m, 128]
         target_sent_embed = target_sent_embed + target_pos_embed
 
         source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
@@ -435,11 +440,11 @@ class SynAlign(Model):
 
         while 1:
             step = step + 1
-            # loss, _ = sess.run([self.loss, self.train_op])
-            try:
-                loss, _ = sess.run([self.loss, self.train_op])
-            except:
-                break
+            loss, _ = sess.run([self.loss, self.train_op])
+            # try:
+            #     loss, _ = sess.run([self.loss, self.train_op])
+            # except:
+            #     break
             losses.append(loss)
 
             cnt += self.p.batch_size
