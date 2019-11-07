@@ -211,7 +211,7 @@ class SynAlign(Model):
 
         # data file
         # self.path_to_file = "./data/en-de.txt"
-        self.path_to_file = "./data/en-de-format.txt"
+        self.path_to_file = "./data/en-de-train.txt"
 
         # create tokenizer
         self.create_tokenizer()

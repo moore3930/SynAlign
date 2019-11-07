@@ -169,3 +169,16 @@ def preprocess_sentence(w):
 
 def max_length(tensor):
 	return max(len(t) for t in tensor)
+
+def get_wa_score(labeled_file, eval_file):
+	labeled_set = set()
+	eval_set = set()
+	for line in open(labeled_file):
+		labeled_set.add(line)
+	for line in open(eval_file):
+		eval_set.add(line)
+	inter_set = eval_set.intersection(labeled_set)
+	P = len(inter_set) / len(eval_set)
+	R = len(inter_set) / len(labeled_set)
+	F1 = (2 * P * R) / (P + R)
+	return P, R, F1

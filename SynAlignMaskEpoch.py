@@ -145,6 +145,7 @@ class SynAlign(Model):
         return source_sent_embed, source_att_embed, target_sent_embed, target_att_embed
 
     def build_eval_graph(self):
+        # get batch data
         eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask, self.eval_iter =\
             self.get_batch(self.eval_path_to_file, self.p.batch_size)
 
@@ -184,9 +185,10 @@ class SynAlign(Model):
         loss:		Computes loss
         """
 
-        # train graph
+        # get batch data
         source_sent, target_sent, source_mask, target_mask, self.train_iter =\
             self.get_batch(self.path_to_file, self.p.batch_size)
+
         source_sent_embed, source_att_embed, target_sent_embed, target_att_embed =\
             self.add_model(source_sent, target_sent, source_mask, target_mask)
 
@@ -312,6 +314,7 @@ class SynAlign(Model):
         sess.run(self.eval_iter.initializer)
         fs_out = open('{}/{}-st-alginment-{}'.format(self.p.emb_dir, self.p.name, epoch), 'w')
         ft_out = open('{}/{}-ts-alginment-{}'.format(self.p.emb_dir, self.p.name, epoch), 'w')
+        fs_wa_out = open('data/en-fr-eval-wa.txt', 'w')
 
         while 1:
             step = step + 1
@@ -350,6 +353,18 @@ class SynAlign(Model):
                 ft_out.write(t_sent_out + '\n')
                 ft_out.write(t_align_out + '\n')
 
+            # s -> t word alignment
+            sent_num = 0
+            for i in range(st_align.shape[0]):
+                sent_num += 1
+                for j in range(st_align.shape[1]):
+                    if st_align[i][j] > 0:
+                        fs_wa_out.write('num-' + str(sent_num) + ' ' + str(j+1) + ' -> ' + str(st_align[i][j]) + '\n')
+
+            cnt += self.p.batch_size
+            if step % 10 == 0:
+                self.logger.info('Write Sents: {}'.format(cnt))
+
             cnt += self.p.batch_size
             if step % 10 == 0:
                 self.logger.info('Write Sents: {}'.format(cnt))
@@ -358,7 +373,12 @@ class SynAlign(Model):
         fs_out.close()
         ft_out.flush()
         ft_out.close()
+        fs_wa_out.flush()
+        fs_wa_out.close()
         print('Write Alignment Done ! ')
+        P, R, F1 = get_wa_score('data/en-fr-wa.txt', 'data/en-fr-eval-wa.txt')
+        print("=== WA score ===")
+        print("P: {}, R: {}, F1: {}".format(P, R, F1))
 
         return
 
@@ -371,14 +391,6 @@ class SynAlign(Model):
         results = {key: round(val[0], 4) for key, val in results.items()}
         curr_int = np.mean(list(results.values()))
         self.logger.info('Current Source Word2vec Score: {}'.format(curr_int))
-
-        # # Only EN corpus could be evaluated.
-        # target_voc2vec = {wrd: target_emb[wid] for wrd, wid in self.target_tokenizer.word_index.items()}
-        # target_embedding = Embedding.from_dict(target_voc2vec)
-        # results = evaluate_on_all(target_embedding)
-        # results = {key: round(val[0], 4) for key, val in results.items()}
-        # curr_int = np.mean(list(results.values()))
-        # self.logger.info('Current Target Word2vec Score: {}'.format(curr_int))
 
         return
 
@@ -401,6 +413,7 @@ class SynAlign(Model):
         step = 0
         st = time.time()
         sess.run(self.train_iter.initializer)
+        self.get_alignment(epoch, sess)
 
         while 1:
             step = step + 1
@@ -466,8 +479,8 @@ class SynAlign(Model):
     def __init__(self, params):
 
         # data file
-        self.path_to_file = "./data/en-de-format.txt"
-        self.eval_path_to_file = "./data/en-de-eval.txt"
+        self.path_to_file = "./data/en-fr-sample.txt"
+        self.eval_path_to_file = "./data/en-fr-eval.txt"
 
         # create tokenizer
         self.create_tokenizer()

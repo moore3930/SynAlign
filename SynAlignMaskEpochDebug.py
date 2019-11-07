@@ -353,6 +353,7 @@ class SynAlign(Model):
         sess.run(self.eval_iter.initializer)
         fs_out = open('{}/{}-st-alginment-{}'.format(self.p.emb_dir, self.p.name, epoch), 'w')
         ft_out = open('{}/{}-ts-alginment-{}'.format(self.p.emb_dir, self.p.name, epoch), 'w')
+        fs_wa_out = open('data/en-fr-eval-wa.txt', 'w')
 
         while 1:
             step = step + 1
@@ -392,6 +393,16 @@ class SynAlign(Model):
                 t_align_out = " ".join(t_align_tmp)
                 ft_out.write(t_sent_out + '\n')
                 ft_out.write(t_align_out + '\n')
+
+            # s -> t word alignment
+            sent_num = 0
+            for i in range(st_align.shape[0]):
+                sent_num += 1
+                for j in range(st_align.shape[1]):
+                    if st_align[i][j] > 0:
+                        fs_wa_out.write('num-' + str(sent_num) + ' ' + str(j+1) + ' -> ' + str(st_align[i][j]))
+            fs_wa_out.flush()
+            fs_wa_out.close()
 
             cnt += self.p.batch_size
             if step % 10 == 0:
@@ -510,8 +521,8 @@ class SynAlign(Model):
     def __init__(self, params):
 
         # data file
-        self.path_to_file = "./data/en-de-format.txt"
-        self.eval_path_to_file = "./data/en-de-eval.txt"
+        self.path_to_file = "./data/en-fr-sample.txt"
+        self.eval_path_to_file = "./data/en-fr-eval.txt"
 
         # create tokenizer
         self.create_tokenizer()
