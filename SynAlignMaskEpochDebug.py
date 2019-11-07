@@ -61,7 +61,11 @@ class SynAlign(Model):
 
         source_pos_ids = np.array([[i for i in range(1, source_ids.shape[1] + 1)]])
         source_pos_ids = np.tile(source_pos_ids, [source_ids.shape[0], 1])
-        source_pos_ids = ((source_pos_ids * 2 * np.pi) / source_max_len[:, np.newaxis]).astype(np.int32)     # [?, n]
+        try:
+            source_pos_ids = ((source_pos_ids * 2 * np.pi) / source_max_len[:, np.newaxis]).astype(np.int32)     # [?, n]
+        except:
+            print(source_max_len)
+            print(source_pos_ids)
         source_pos_ids = np.array([[[np.cos(d), np.sin(d)] for d in line] for line in source_pos_ids], dtype=np.float32)      # [?, n, 2]
 
         target_pos_ids = np.array([[i for i in range(1, target_ids.shape[1] + 1)]])
@@ -440,11 +444,11 @@ class SynAlign(Model):
 
         while 1:
             step = step + 1
-            loss, _ = sess.run([self.loss, self.train_op])
-            # try:
-            #     loss, _ = sess.run([self.loss, self.train_op])
-            # except:
-            #     break
+            # loss, _ = sess.run([self.loss, self.train_op])
+            try:
+                loss, _ = sess.run([self.loss, self.train_op])
+            except:
+                break
             losses.append(loss)
 
             cnt += self.p.batch_size
