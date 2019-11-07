@@ -441,6 +441,7 @@ class SynAlign(Model):
         step = 0
         st = time.time()
         sess.run(self.train_iter.initializer)
+        self.get_alignment(epoch, sess)
 
         while 1:
             step = step + 1
