@@ -66,8 +66,10 @@ class SynAlign(Model):
         # print(source_ids)
         # print(target_ids)
 
-        source_ids = tf.keras.preprocessing.sequence.pad_sequences(source_ids, maxlen=max_len, padding='post')
-        target_ids = tf.keras.preprocessing.sequence.pad_sequences(target_ids, maxlen=max_len, padding='post')
+        source_ids = tf.keras.preprocessing.sequence.pad_sequences(source_ids, maxlen=max_len,
+                                                                   padding='post', truncating='post')
+        target_ids = tf.keras.preprocessing.sequence.pad_sequences(target_ids, maxlen=max_len,
+                                                                   padding='post', truncating='post')
 
         # mask
         source_mask = source_ids > 0
@@ -128,8 +130,12 @@ class SynAlign(Model):
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
 
-        source_sent_embed = tf.layers.conv1d(source_sent_embed, 128, 3, 1, padding='SAME', name='source_conv', reuse=tf.AUTO_REUSE)
-        target_sent_embed = tf.layers.conv1d(target_sent_embed, 128, 3, 1, padding='SAME', name='target_conv', reuse=tf.AUTO_REUSE)
+        source_sent_embed = tf.layers.conv1d(source_sent_embed, 128, 3, 1,
+                                             padding='SAME', name='source_conv',
+                                             kernel_regularizer=self.regularizer, reuse=tf.AUTO_REUSE)   # [?, n, 128]
+        target_sent_embed = tf.layers.conv1d(target_sent_embed, 128, 3, 1,
+                                             padding='SAME', name='target_conv',
+                                             kernel_regularizer=self.regularizer, reuse=tf.AUTO_REUSE)   # [?, m, 128]
 
         source_mask_tile = tf.tile(tf.expand_dims(source_mask, 2), [1, 1, tf.shape(target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(target_mask, 1), [1, tf.shape(source_mask)[1], 1])    # [?, n, m]
@@ -157,8 +163,8 @@ class SynAlign(Model):
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
 
-        source_sent_embed = tf.layers.conv1d(source_sent_embed, 128, 3, 1, padding='SAME', name='source_conv', reuse=tf.AUTO_REUSE)
-        target_sent_embed = tf.layers.conv1d(target_sent_embed, 128, 3, 1, padding='SAME', name='target_conv', reuse=tf.AUTO_REUSE)
+        source_sent_embed = tf.layers.conv1d(source_sent_embed, 128, 3, 1, padding='SAME', name='source_conv', kernel_regularizer=self.regularizer, reuse=tf.AUTO_REUSE)
+        target_sent_embed = tf.layers.conv1d(target_sent_embed, 128, 3, 1, padding='SAME', name='target_conv', kernel_regularizer=self.regularizer, reuse=tf.AUTO_REUSE)
 
         source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(eval_target_mask, 1), [1, tf.shape(eval_source_mask)[1], 1])    # [?, n, m]
@@ -257,10 +263,10 @@ class SynAlign(Model):
 
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
 
-        # if self.regularizer is not None:
-        #     loss += tf.contrib.layers.apply_regularization(
-        #         self.regularizer, tf.get_collection(
-        #             tf.GraphKeys.REGULARIZATION_LOSSES))
+        if self.regularizer is not None:
+            loss += tf.contrib.layers.apply_regularization(
+                self.regularizer, tf.get_collection(
+                    tf.GraphKeys.REGULARIZATION_LOSSES))
 
         self.loss = loss
 
