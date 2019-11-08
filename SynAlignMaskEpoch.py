@@ -156,6 +156,10 @@ class SynAlign(Model):
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
 
+        # pooling
+        source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
+        target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME')
+
         source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(eval_target_mask, 1), [1, tf.shape(eval_source_mask)[1], 1])    # [?, n, m]
         mask = tf.logical_and(source_mask_tile, target_mask_tile)    # [?, n, m]
@@ -199,14 +203,18 @@ class SynAlign(Model):
         source_sent_embed, source_att_embed, target_sent_embed, target_att_embed =\
             self.add_model(source_sent, target_sent, source_mask, target_mask)
 
+        # pooling
+        source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
+        target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME')
+
         target_words = tf.reshape(target_sent, [-1, 1])    # [? * m]
         source_words = tf.reshape(source_sent, [-1, 1])    # [? * n]
 
         target_neg_ids, _, _ = tf.nn.fixed_unigram_candidate_sampler(
             true_classes=tf.cast(target_words, tf.int64),
             num_true=1,
-            num_sampled=self.p.num_neg * self.p.batch_size,
-            unique=True,
+            num_sampled=self.p.num_neg * self.p.batch_size * self.p.max_sent_len,
+            unique=False,
             distortion=0.75,
             range_max=self.vocab_target_size,
             unigrams=self.vocab_target_freq
@@ -215,17 +223,17 @@ class SynAlign(Model):
         source_neg_ids, _, _ = tf.nn.fixed_unigram_candidate_sampler(
             true_classes=tf.cast(source_words, tf.int64),
             num_true=1,
-            num_sampled=self.p.num_neg * self.p.batch_size,
-            unique=True,
+            num_sampled=self.p.num_neg * self.p.batch_size * self.p.max_sent_len,
+            unique=False,
             distortion=0.75,
             range_max=self.vocab_source_size,
             unigrams=self.vocab_source_freq
         )
-        target_neg_ids = tf.cast(target_neg_ids, dtype=tf.int32)    # [? * neg_num]
-        target_neg_ids = tf.tile(tf.expand_dims(tf.reshape(target_neg_ids, [self.p.batch_size, self.p.num_neg]), 2), [1, 1, tf.shape(target_sent)[1]])  # [?, num_neg, t_len]
+        target_neg_ids = tf.cast(target_neg_ids, dtype=tf.int32)    # [? * neg_num * max_len]
+        target_neg_ids = tf.reshape(target_neg_ids, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len])
         target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
         source_neg_ids = tf.cast(source_neg_ids, dtype=tf.int32)
-        source_neg_ids = tf.tile(tf.expand_dims(tf.reshape(source_neg_ids, [self.p.batch_size, self.p.num_neg]), 2), [1, 1, tf.shape(source_sent)[1]])  # [?, num_neg, s_len]
+        source_neg_ids = tf.reshape(source_neg_ids, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len])
         source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_ids)    # [?, num_neg, s_len, 128]
 
         source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
@@ -253,10 +261,10 @@ class SynAlign(Model):
 
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
 
-        if self.regularizer is not None:
-            loss += tf.contrib.layers.apply_regularization(
-                self.regularizer, tf.get_collection(
-                    tf.GraphKeys.REGULARIZATION_LOSSES))
+        # if self.regularizer is not None:
+        #     loss += tf.contrib.layers.apply_regularization(
+        #         self.regularizer, tf.get_collection(
+        #             tf.GraphKeys.REGULARIZATION_LOSSES))
 
         self.loss = loss
 
