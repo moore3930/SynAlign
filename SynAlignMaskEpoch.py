@@ -130,13 +130,6 @@ class SynAlign(Model):
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
 
-        source_sent_embed = tf.layers.conv1d(source_sent_embed, 128, 3, 1,
-                                             padding='SAME', name='source_conv',
-                                             kernel_regularizer=self.regularizer, reuse=tf.AUTO_REUSE)   # [?, n, 128]
-        target_sent_embed = tf.layers.conv1d(target_sent_embed, 128, 3, 1,
-                                             padding='SAME', name='target_conv',
-                                             kernel_regularizer=self.regularizer, reuse=tf.AUTO_REUSE)   # [?, m, 128]
-
         source_mask_tile = tf.tile(tf.expand_dims(source_mask, 2), [1, 1, tf.shape(target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(target_mask, 1), [1, tf.shape(source_mask)[1], 1])    # [?, n, m]
         mask = tf.logical_and(source_mask_tile, target_mask_tile)    # [?, n, m]
@@ -162,9 +155,6 @@ class SynAlign(Model):
 
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
-
-        source_sent_embed = tf.layers.conv1d(source_sent_embed, 128, 3, 1, padding='SAME', name='source_conv', kernel_regularizer=self.regularizer, reuse=tf.AUTO_REUSE)
-        target_sent_embed = tf.layers.conv1d(target_sent_embed, 128, 3, 1, padding='SAME', name='target_conv', kernel_regularizer=self.regularizer, reuse=tf.AUTO_REUSE)
 
         source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(eval_target_mask, 1), [1, tf.shape(eval_source_mask)[1], 1])    # [?, n, m]
@@ -549,7 +539,7 @@ if __name__ == "__main__":
     parser.add_argument('-lr', dest="lr", default=0.001, type=float, help='Learning rate')
     parser.add_argument('-batch', dest="batch_size", default=64, type=int, help='Batch size')
     parser.add_argument('-epoch', dest="max_epochs", default=50, type=int, help='Max epochs')
-    parser.add_argument('-l2', dest="l2", default=0.00001, type=float, help='L2 regularization')
+    parser.add_argument('-l2', dest="l2", default=0.01, type=float, help='L2 regularization')
     parser.add_argument('-seed', dest="seed", default=1234, type=int, help='Seed for randomization')
     parser.add_argument('-sample', dest="sample", default=1e-4, type=float, help='Subsampling parameter')
     parser.add_argument('-neg', dest="num_neg", default=10, type=int, help='Number of negative samples')
