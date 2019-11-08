@@ -46,7 +46,7 @@ class SynAlign(Model):
                                   for _id in range(1, self.vocab_target_size)]
         self.vocab_target_freq.insert(0, 0)
 
-    def batch_process(self, lines):
+    def batch_process(self, lines, max_len):
         # line = line.strip().lower()
         line = [l.strip().lower().split(b'\t') for l in lines]
         try:
@@ -66,8 +66,8 @@ class SynAlign(Model):
         # print(source_ids)
         # print(target_ids)
 
-        source_ids = tf.keras.preprocessing.sequence.pad_sequences(source_ids, padding='post')
-        target_ids = tf.keras.preprocessing.sequence.pad_sequences(target_ids, padding='post')
+        source_ids = tf.keras.preprocessing.sequence.pad_sequences(source_ids, maxlen=max_len, padding='post')
+        target_ids = tf.keras.preprocessing.sequence.pad_sequences(target_ids, maxlen=max_len, padding='post')
 
         # mask
         source_mask = source_ids > 0
@@ -81,7 +81,7 @@ class SynAlign(Model):
         iter = dataset.make_initializable_iterator()
         batch = iter.get_next()
         source_sent, target_sent, source_mask, target_mask = \
-            tf.py_func(self.batch_process, [batch], [tf.int32, tf.int32, tf.bool, tf.bool])
+            tf.py_func(self.batch_process, [batch, 80], [tf.int32, tf.int32, tf.bool, tf.bool])
         return source_sent, target_sent, source_mask, target_mask, iter
 
     def init_embedding(self):
@@ -128,6 +128,9 @@ class SynAlign(Model):
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
 
+        source_sent_embed = tf.layers.conv1d(source_sent_embed, 128, 3, 1, padding='SAME', name='source_conv', reuse=tf.AUTO_REUSE)
+        target_sent_embed = tf.layers.conv1d(target_sent_embed, 128, 3, 1, padding='SAME', name='target_conv', reuse=tf.AUTO_REUSE)
+
         source_mask_tile = tf.tile(tf.expand_dims(source_mask, 2), [1, 1, tf.shape(target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(target_mask, 1), [1, tf.shape(source_mask)[1], 1])    # [?, n, m]
         mask = tf.logical_and(source_mask_tile, target_mask_tile)    # [?, n, m]
@@ -148,9 +151,14 @@ class SynAlign(Model):
         # get batch data
         eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask, self.eval_iter =\
             self.get_batch(self.eval_path_to_file, self.p.batch_size)
+        eval_source_sent.set_shape([None, self.p.max_sent_len])
+        eval_target_sent.set_shape([None, self.p.max_sent_len])
 
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
+
+        source_sent_embed = tf.layers.conv1d(source_sent_embed, 128, 3, 1, padding='SAME', name='source_conv', reuse=tf.AUTO_REUSE)
+        target_sent_embed = tf.layers.conv1d(target_sent_embed, 128, 3, 1, padding='SAME', name='target_conv', reuse=tf.AUTO_REUSE)
 
         source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(eval_target_mask, 1), [1, tf.shape(eval_source_mask)[1], 1])    # [?, n, m]
@@ -188,7 +196,10 @@ class SynAlign(Model):
         # get batch data
         source_sent, target_sent, source_mask, target_mask, self.train_iter =\
             self.get_batch(self.path_to_file, self.p.batch_size)
+        source_sent.set_shape([None, self.p.max_sent_len])
+        target_sent.set_shape([None, self.p.max_sent_len])
 
+        # feed into model
         source_sent_embed, source_att_embed, target_sent_embed, target_att_embed =\
             self.add_model(source_sent, target_sent, source_mask, target_mask)
 
@@ -413,10 +424,10 @@ class SynAlign(Model):
         step = 0
         st = time.time()
         sess.run(self.train_iter.initializer)
-        self.get_alignment(epoch, sess)
 
         while 1:
             step = step + 1
+            # loss, _ = sess.run([self.loss, self.train_op])
             try:
                 loss, _ = sess.run([self.loss, self.train_op])
             except:
@@ -554,7 +565,7 @@ if __name__ == "__main__":
 
     # Added these two arguments to enable others to personalize the training set. Otherwise, the programme may suffer from memory overflow easily.
     # It is suggested that the -maxlen be set no larger than 100.
-    parser.add_argument('-maxsentlen', dest="max_sent_len", default=50, type=int,
+    parser.add_argument('-maxsentlen', dest="max_sent_len", default=80, type=int,
                         help='Max length of the sentences in data.txt (default: 40)')
     parser.add_argument('-maxdeplen', dest="max_dep_len", default=800, type=int,
                         help='Max length of the dependency relations in data.txt (default: 800)')
