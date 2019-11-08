@@ -83,7 +83,7 @@ class SynAlign(Model):
         iter = dataset.make_initializable_iterator()
         batch = iter.get_next()
         source_sent, target_sent, source_mask, target_mask = \
-            tf.py_func(self.batch_process, [batch, 80], [tf.int32, tf.int32, tf.bool, tf.bool])
+            tf.py_func(self.batch_process, [batch, self.p.max_sent_len], [tf.int32, tf.int32, tf.bool, tf.bool])
         return source_sent, target_sent, source_mask, target_mask, iter
 
     def init_embedding(self):
