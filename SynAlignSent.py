@@ -79,7 +79,7 @@ class SynAlign(Model):
 
     def get_batch(self, path, batch_size):
         dataset = tf.data.TextLineDataset([path])
-        dataset = dataset.shuffle(1000).batch(batch_size)
+        dataset = dataset.batch(batch_size)
         iter = dataset.make_initializable_iterator()
         batch = iter.get_next()
         source_sent, target_sent, source_mask, target_mask = \
