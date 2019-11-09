@@ -248,7 +248,7 @@ class SynAlign(Model):
         # tf.Print(source_labels, [source_labels], message='detail of source labels', summarize=1000)
         # tf.Print(source_logits, [source_logits], message='detail of source logits', summarize=1000)
         source_loss = tf.nn.weighted_cross_entropy_with_logits(targets=source_labels, logits=source_logits, pos_weight=1.0, name='source_loss')   # [?, num_neg+1, s_len]
-        source_mask = tf.concat([tf.expand_dims(source_mask), source_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
+        source_mask = tf.concat([tf.expand_dims(source_mask, axis=1), source_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
         source_loss = tf.where(source_mask, source_loss, tf.zeros(tf.shape(source_loss)))   # get valid loss
         target_loss = tf.nn.weighted_cross_entropy_with_logits(targets=target_labels, logits=target_logits, pos_weight=1.0, name='target_loss')   # [?, num_neg+1, t_len]
         target_mask = tf.concat([tf.expand_dims(target_mask, axis=1), target_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
