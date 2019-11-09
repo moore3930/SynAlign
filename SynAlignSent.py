@@ -211,16 +211,18 @@ class SynAlign(Model):
         s_sent_shift_list = []
         s_mask_shift_list = []
         for i in range(1, self.p.num_neg + 1):
-            s_sent_shift_list.append(tf.roll(source_sent, shift=[1, 0], axis=[0, 1]))
-            s_mask_shift_list.append(tf.roll(source_mask, shift=[1, 0], axis=[0, 1]))
+            s_sent_shift_list.append(tf.roll(source_sent, shift=[i, 0], axis=[0, 1]))
+            s_mask_shift_list.append(tf.roll(source_mask, shift=[i, 0], axis=[0, 1]))
         source_neg_ids = tf.stack(s_sent_shift_list, axis=1)    # [?, neg_num, max_len]
         source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, max_len]
+        source_neg_ids = tf.Print(source_neg_ids, [source_neg_ids], message='detail of source_neg_ids', summarize=1000)
+        source_neg_mask = tf.Print(source_neg_mask, [source_neg_mask], message='detail of source_neg_mask', summarize=1000)
 
         t_sent_shift_list = []
         t_mask_shift_list = []
         for i in range(1, self.p.num_neg + 1):
-            t_sent_shift_list.append(tf.roll(target_sent, shift=[1, 0], axis=[0, 1]))
-            t_mask_shift_list.append(tf.roll(target_mask, shift=[1, 0], axis=[0, 1]))
+            t_sent_shift_list.append(tf.roll(target_sent, shift=[i, 0], axis=[0, 1]))
+            t_mask_shift_list.append(tf.roll(target_mask, shift=[i, 0], axis=[0, 1]))
         target_neg_ids = tf.stack(t_sent_shift_list, axis=1)    # [?, neg_num, max_len]
         target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, neg_num, max_len]
 
@@ -243,6 +245,8 @@ class SynAlign(Model):
         target_labels = tf.concat([target_pos_labels, target_neg_labels], axis=1)   # [?, num_neg+1, t_len]
 
         # loss
+        tf.Print(source_labels, [source_labels], message='detail of source labels', summarize=1000)
+        tf.Print(source_logits, [source_logits], message='detail of source logits', summarize=1000)
         source_loss = tf.nn.weighted_cross_entropy_with_logits(targets=source_labels, logits=source_logits, pos_weight=1.0, name='source_loss')   # [?, num_neg+1, s_len]
         source_mask = tf.stack([source_mask, source_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
         source_loss = tf.where(source_mask, source_loss, tf.zeros(tf.shape(source_loss)))   # get valid loss
@@ -250,8 +254,10 @@ class SynAlign(Model):
         target_mask = tf.stack([target_mask, target_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
         target_loss = tf.where(target_mask, target_loss, tf.zeros(tf.shape(target_loss)))   # get valid loss
 
+        source_loss = tf.Print(source_loss, [source_loss], message='detail of source loss', summarize=1000)
+        target_loss = tf.Print(target_loss, [target_loss], message='detail of target loss', summarize=1000)
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
-
+        loss = tf.Print(loss, [loss], message='detail of loss', summarize=1000)
         # if self.regularizer is not None:
         #     loss += tf.contrib.layers.apply_regularization(
         #         self.regularizer, tf.get_collection(
