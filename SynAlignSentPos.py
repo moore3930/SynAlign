@@ -122,11 +122,10 @@ class SynAlign(Model):
                                                     initializer=tf.contrib.layers.xavier_initializer())
 
         np_pos_ids = np.array([[i for i in range(1, self.p.max_sent_len + 1)]])
-        np_pos_ids = np.tile(np_pos_ids, [self.p.batch_size, 1])
         source_pos_ids = tf.constant(np_pos_ids, dtype=tf.int32)
         target_pos_ids = tf.constant(np_pos_ids, dtype=tf.int32)
-        self.source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, source_pos_ids)   # [?, n, 128]
-        self.target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, target_pos_ids)   # [?, m, 128]
+        self.source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, source_pos_ids)   # [1, n, 128]
+        self.target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, target_pos_ids)   # [1, m, 128]
         print("Position Embedding init done !")
 
     def add_model(self, source_sent, target_sent, source_mask, target_mask):
@@ -145,8 +144,8 @@ class SynAlign(Model):
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
 
         # add position embedding
-        source_sent_embed = source_sent_embed + self.source_pos_embed
-        target_sent_embed = target_sent_embed + self.target_pos_embed
+        source_sent_embed = source_sent_embed + tf.tile(self.source_pos_embed, [tf.shape(source_sent_embed)[0], 1, 1])
+        target_sent_embed = target_sent_embed + tf.tile(self.target_pos_embed, [tf.shape(target_sent_embed)[0], 1, 1])
 
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
@@ -179,8 +178,8 @@ class SynAlign(Model):
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
 
         # add position embedding
-        source_sent_embed = source_sent_embed + self.source_pos_embed
-        target_sent_embed = target_sent_embed + self.target_pos_embed
+        source_sent_embed = source_sent_embed + tf.tile(self.source_pos_embed, [tf.shape(source_sent_embed)[0], 1, 1])
+        target_sent_embed = target_sent_embed + tf.tile(self.target_pos_embed, [tf.shape(source_sent_embed)[0], 1, 1])
 
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
@@ -252,8 +251,10 @@ class SynAlign(Model):
         target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
 
         # add position embedding into neg sentence
-        source_neg_embed = source_neg_embed + tf.tile(tf.expand_dims(self.source_pos_embed, 1), [1, self.p.num_neg, 1, 1])
-        target_neg_embed = target_neg_embed + tf.tile(tf.expand_dims(self.target_pos_embed, 1), [1, self.p.num_neg, 1, 1])
+        source_neg_embed = source_neg_embed + tf.tile(tf.expand_dims(self.source_pos_embed, 1),
+                                                      [tf.shape(source_neg_embed)[0], self.p.num_neg, 1, 1])
+        target_neg_embed = target_neg_embed + tf.tile(tf.expand_dims(self.target_pos_embed, 1),
+                                                      [tf.shape(target_neg_embed)[0], self.p.num_neg, 1, 1])
 
         source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
         target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
@@ -356,14 +357,14 @@ class SynAlign(Model):
 
         while 1:
             step = step + 1
-            st_align, ts_align, s_sent, t_sent = \
-                sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent])
-            # try:
-            #     st_align, ts_align, s_sent, t_sent =\
-            #         sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent])
-            # except:
-            #     print('{} Alignments Writing Done ! '.format(cnt))
-            #     break
+            # st_align, ts_align, s_sent, t_sent = \
+            #     sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent])
+            try:
+                st_align, ts_align, s_sent, t_sent =\
+                    sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent])
+            except:
+                print('{} Alignments Writing Done ! '.format(cnt))
+                break
 
             # source sent alignment
             for i in range(s_sent.shape[0]):
