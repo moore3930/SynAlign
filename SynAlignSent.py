@@ -58,8 +58,13 @@ class SynAlign(Model):
         target_text = [line.decode('utf-8') for line in target_text]
         source_text = [preprocess_sentence(line) for line in source_text]
         target_text = [preprocess_sentence(line) for line in target_text]
+        # print(source_text)
+        # print(target_text)
+
         source_ids = self.source_tokenizer.texts_to_sequences(source_text)
         target_ids = self.target_tokenizer.texts_to_sequences(target_text)
+        # print(source_ids)
+        # print(target_ids)
 
         source_ids = tf.keras.preprocessing.sequence.pad_sequences(source_ids, maxlen=max_len,
                                                                    padding='post', truncating='post')
@@ -70,39 +75,16 @@ class SynAlign(Model):
         source_mask = source_ids > 0
         target_mask = target_ids > 0
 
-        # pos id
-        source_pos_ids = np.array([[i for i in range(1, source_ids.shape[1] + 1)]]).astype(np.int32)
-        source_pos_ids = np.tile(source_pos_ids, [source_ids.shape[0], 1])
-        source_pos_ids = np.where(source_mask, source_pos_ids, np.zeros(source_pos_ids.shape, dtype=np.int32))
-
-        target_pos_ids = np.array([[i for i in range(1, target_ids.shape[1] + 1)]]).astype(np.int32)
-        target_pos_ids = np.tile(target_pos_ids, [target_ids.shape[0], 1])
-        target_pos_ids = np.where(target_mask, target_pos_ids, np.zeros(target_pos_ids.shape, dtype=np.int32))
-
-        # hack, get the last position of '.' for replace the sampled sentences. So that to maintain the train do not
-        # go deviation
-        source_max_mask = np.array(source_mask)
-        target_max_mask = np.array(target_mask)
-
-        for i in range(0, source_max_mask.shape[0]):
-            for j in range(1, source_max_mask.shape[1]):
-                if source_max_mask[i][j] != False:
-                    source_max_mask[i][j-1] = False
-        for i in range(0, target_max_mask.shape[0]):
-            for j in range(1, target_max_mask.shape[1]):
-                if target_max_mask[i][j] != False:
-                    target_max_mask[i][j-1] = False
-
-        return source_ids, target_ids, source_pos_ids, target_pos_ids, source_mask, target_mask, source_max_mask, target_max_mask
+        return source_ids, target_ids, source_mask, target_mask
 
     def get_batch(self, path, batch_size):
         dataset = tf.data.TextLineDataset([path])
         dataset = dataset.batch(batch_size)
         iter = dataset.make_initializable_iterator()
         batch = iter.get_next()
-        source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask, source_max_mask, target_max_mask = \
-            tf.py_func(self.batch_process, [batch, self.p.max_sent_len], [tf.int32, tf.int32, tf.int32, tf.int32, tf.bool, tf.bool, tf.bool, tf.bool])
-        return source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask, source_max_mask, target_max_mask, iter
+        source_sent, target_sent, source_mask, target_mask = \
+            tf.py_func(self.batch_process, [batch, self.p.max_sent_len], [tf.int32, tf.int32, tf.bool, tf.bool])
+        return source_sent, target_sent, source_mask, target_mask, iter
 
     def init_embedding(self):
         # when target embeddings for initialization is assigned
@@ -133,14 +115,7 @@ class SynAlign(Model):
                                                initializer=tf.contrib.layers.xavier_initializer())
             print("Embedding init done !")
 
-        # init pos embedding
-        self.source_pos_emb_table = tf.get_variable(name='source_pos_emb', shape=[500, self.p.embed_dim],
-                                                    initializer=tf.contrib.layers.xavier_initializer())
-        self.target_pos_emb_table = tf.get_variable(name='target_pos_emb', shape=[500, self.p.embed_dim],
-                                                    initializer=tf.contrib.layers.xavier_initializer())
-        print("Position Embedding init done !")
-
-    def add_model(self, source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask):
+    def add_model(self, source_sent, target_sent, source_mask, target_mask):
         """
         Creates the Computational Graph
 
@@ -154,12 +129,6 @@ class SynAlign(Model):
 
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
-
-        # add position embedding
-        source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, source_pos_ids)
-        target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, target_pos_ids)
-        source_sent_embed = source_sent_embed + source_pos_embed
-        target_sent_embed = target_sent_embed + target_pos_embed
 
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
@@ -183,22 +152,13 @@ class SynAlign(Model):
 
     def build_eval_graph(self):
         # get batch data
-        eval_source_sent, eval_target_sent, source_pos_ids, target_pos_ids, eval_source_mask, eval_target_mask, _, _, self.eval_iter = \
-            self.get_batch(self.path_to_file, self.p.batch_size)
-
+        eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask, self.eval_iter =\
+            self.get_batch(self.eval_path_to_file, self.p.batch_size)
         eval_source_sent.set_shape([None, self.p.max_sent_len])
         eval_target_sent.set_shape([None, self.p.max_sent_len])
-        source_pos_ids.set_shape([None, self.p.max_sent_len])
-        target_pos_ids.set_shape([None, self.p.max_sent_len])
 
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
-
-        # add position embedding
-        source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, source_pos_ids)
-        target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, target_pos_ids)
-        source_sent_embed = source_sent_embed + source_pos_embed
-        target_sent_embed = target_sent_embed + target_pos_embed
 
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
@@ -238,52 +198,34 @@ class SynAlign(Model):
         """
 
         # get batch data
-        source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask, source_max_mask, target_max_mask, self.train_iter =\
+        source_sent, target_sent, source_mask, target_mask, self.train_iter =\
             self.get_batch(self.path_to_file, self.p.batch_size)
         source_sent.set_shape([None, self.p.max_sent_len])
         target_sent.set_shape([None, self.p.max_sent_len])
-        source_pos_ids.set_shape([None, self.p.max_sent_len])
-        target_pos_ids.set_shape([None, self.p.max_sent_len])
 
         # feed into model
         source_sent_embed, source_att_embed, target_sent_embed, target_att_embed =\
-            self.add_model(source_sent, target_sent, source_pos_ids, target_pos_ids, source_mask, target_mask)
+            self.add_model(source_sent, target_sent, source_mask, target_mask)
 
-        target_words = tf.reshape(target_sent, [-1, 1])    # [? * m]
-        source_words = tf.reshape(source_sent, [-1, 1])    # [? * n]
+        # shuffle the batch of sentences
+        s_sent_shift_list = []
+        s_mask_shift_list = []
+        for i in range(1, self.p.num_neg + 1):
+            s_sent_shift_list.append(tf.roll(source_sent, shift=[1, 0], axis=[0, 1]))
+            s_mask_shift_list.append(tf.roll(source_mask, shift=[1, 0], axis=[0, 1]))
+        source_neg_ids = tf.stack(s_sent_shift_list, axis=1)    # [?, neg_num, max_len]
+        source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, max_len]
 
-        target_neg_ids, _, _ = tf.nn.fixed_unigram_candidate_sampler(
-            true_classes=tf.cast(target_words, tf.int64),
-            num_true=1,
-            num_sampled=self.p.num_neg * self.p.batch_size * self.p.max_sent_len,
-            unique=False,
-            distortion=0.75,
-            range_max=self.vocab_target_size,
-            unigrams=self.vocab_target_freq
-        )
+        t_sent_shift_list = []
+        t_mask_shift_list = []
+        for i in range(1, self.p.num_neg + 1):
+            t_sent_shift_list.append(tf.roll(target_sent, shift=[1, 0], axis=[0, 1]))
+            t_mask_shift_list.append(tf.roll(target_mask, shift=[1, 0], axis=[0, 1]))
+        target_neg_ids = tf.stack(t_sent_shift_list, axis=1)    # [?, neg_num, max_len]
+        target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, neg_num, max_len]
 
-        source_neg_ids, _, _ = tf.nn.fixed_unigram_candidate_sampler(
-            true_classes=tf.cast(source_words, tf.int64),
-            num_true=1,
-            num_sampled=self.p.num_neg * self.p.batch_size * self.p.max_sent_len,
-            unique=False,
-            distortion=0.75,
-            range_max=self.vocab_source_size,
-            unigrams=self.vocab_source_freq
-        )
-        target_neg_ids = tf.cast(target_neg_ids, dtype=tf.int32)    # [? * neg_num * max_len]
-        target_neg_ids = tf.reshape(target_neg_ids, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len])
-        # hack, add '.' into target neg sampling sentence
-        target_period_id = tf.constant(self.target_tokenizer.word_index['.'], shape=[self.p.batch_size, self.p.num_neg, self.p.max_sent_len], dtype=tf.int32)
-        target_neg_ids = tf.where(tf.tile(tf.expand_dims(target_max_mask, 1), [1, self.p.num_neg, 1]), target_neg_ids, target_period_id)
-        target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
-
-        source_neg_ids = tf.cast(source_neg_ids, dtype=tf.int32)
-        source_neg_ids = tf.reshape(source_neg_ids, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len])
-        # hack, add '.' into target neg sampling sentence
-        source_period_id = tf.constant(self.source_tokenizer.word_index['.'], shape=[self.p.batch_size, self.p.num_neg, self.p.max_sent_len], dtype=tf.int32)
-        source_neg_ids = tf.where(tf.tile(tf.expand_dims(source_max_mask, 1), [1, self.p.num_neg, 1]), source_neg_ids, source_period_id)
         source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_ids)    # [?, num_neg, s_len, 128]
+        target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
 
         source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
         target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
@@ -302,11 +244,11 @@ class SynAlign(Model):
 
         # loss
         source_loss = tf.nn.weighted_cross_entropy_with_logits(targets=source_labels, logits=source_logits, pos_weight=1.0, name='source_loss')   # [?, num_neg+1, s_len]
-        source_mask_tile = tf.tile(tf.expand_dims(source_mask, 1), [1, tf.shape(source_loss)[1], 1])
-        source_loss = tf.where(source_mask_tile, source_loss, tf.zeros(tf.shape(source_loss)))   # get valid loss
+        source_mask = tf.stack([source_mask, source_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
+        source_loss = tf.where(source_mask, source_loss, tf.zeros(tf.shape(source_loss)))   # get valid loss
         target_loss = tf.nn.weighted_cross_entropy_with_logits(targets=target_labels, logits=target_logits, pos_weight=1.0, name='target_loss')   # [?, num_neg+1, t_len]
-        target_mask_tile = tf.tile(tf.expand_dims(target_mask, 1), [1, tf.shape(target_loss)[1], 1])
-        target_loss = tf.where(target_mask_tile, target_loss, tf.zeros(tf.shape(target_loss)))   # get valid loss
+        target_mask = tf.stack([target_mask, target_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
+        target_loss = tf.where(target_mask, target_loss, tf.zeros(tf.shape(target_loss)))   # get valid loss
 
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
 
