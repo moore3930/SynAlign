@@ -115,6 +115,20 @@ class SynAlign(Model):
                                                initializer=tf.contrib.layers.xavier_initializer())
             print("Embedding init done !")
 
+        # init pos embedding
+        self.source_pos_emb_table = tf.get_variable(name='source_pos_emb', shape=[500, self.p.embed_dim],
+                                                    initializer=tf.contrib.layers.xavier_initializer())
+        self.target_pos_emb_table = tf.get_variable(name='target_pos_emb', shape=[500, self.p.embed_dim],
+                                                    initializer=tf.contrib.layers.xavier_initializer())
+
+        np_pos_ids = np.array([[i for i in range(1, self.p.max_sent_len + 1)]])
+        np_pos_ids = np.tile(np_pos_ids, [self.p.batch_size, 1])
+        source_pos_ids = tf.constant(np_pos_ids, dtype=tf.int32)
+        target_pos_ids = tf.constant(np_pos_ids, dtype=tf.int32)
+        self.source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, source_pos_ids)   # [?, n, 128]
+        self.target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, target_pos_ids)   # [?, m, 128]
+        print("Position Embedding init done !")
+
     def add_model(self, source_sent, target_sent, source_mask, target_mask):
         """
         Creates the Computational Graph
@@ -129,6 +143,10 @@ class SynAlign(Model):
 
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
+
+        # add position embedding
+        source_sent_embed = source_sent_embed + self.source_pos_embed
+        target_sent_embed = target_sent_embed + self.target_pos_embed
 
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
@@ -159,6 +177,10 @@ class SynAlign(Model):
 
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
+
+        # add position embedding
+        source_sent_embed = source_sent_embed + self.source_pos_embed
+        target_sent_embed = target_sent_embed + self.target_pos_embed
 
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
@@ -207,34 +229,31 @@ class SynAlign(Model):
         source_sent_embed, source_att_embed, target_sent_embed, target_att_embed =\
             self.add_model(source_sent, target_sent, source_mask, target_mask)
 
-        target_words = tf.reshape(target_sent, [-1, 1])    # [? * m]
-        source_words = tf.reshape(source_sent, [-1, 1])    # [? * n]
+        # shuffle the batch of sentences
+        s_sent_shift_list = []
+        s_mask_shift_list = []
+        for i in range(1, self.p.num_neg + 1):
+            s_sent_shift_list.append(tf.roll(source_sent, shift=[i, 0], axis=[0, 1]))
+            s_mask_shift_list.append(tf.roll(source_mask, shift=[i, 0], axis=[0, 1]))
+        source_neg_ids = tf.stack(s_sent_shift_list, axis=1)    # [?, neg_num, max_len]
+        source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, max_len]
+        # source_neg_ids = tf.Print(source_neg_ids, [source_neg_ids], message='detail of source_neg_ids', summarize=1000)
+        # source_neg_mask = tf.Print(source_neg_mask, [source_neg_mask], message='detail of source_neg_mask', summarize=1000)
 
-        target_neg_ids, _, _ = tf.nn.fixed_unigram_candidate_sampler(
-            true_classes=tf.cast(target_words, tf.int64),
-            num_true=1,
-            num_sampled=self.p.num_neg * self.p.batch_size * self.p.max_sent_len,
-            unique=False,
-            distortion=0.75,
-            range_max=self.vocab_target_size,
-            unigrams=self.vocab_target_freq
-        )
+        t_sent_shift_list = []
+        t_mask_shift_list = []
+        for i in range(1, self.p.num_neg + 1):
+            t_sent_shift_list.append(tf.roll(target_sent, shift=[i, 0], axis=[0, 1]))
+            t_mask_shift_list.append(tf.roll(target_mask, shift=[i, 0], axis=[0, 1]))
+        target_neg_ids = tf.stack(t_sent_shift_list, axis=1)    # [?, neg_num, max_len]
+        target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, neg_num, max_len]
 
-        source_neg_ids, _, _ = tf.nn.fixed_unigram_candidate_sampler(
-            true_classes=tf.cast(source_words, tf.int64),
-            num_true=1,
-            num_sampled=self.p.num_neg * self.p.batch_size * self.p.max_sent_len,
-            unique=False,
-            distortion=0.75,
-            range_max=self.vocab_source_size,
-            unigrams=self.vocab_source_freq
-        )
-        target_neg_ids = tf.cast(target_neg_ids, dtype=tf.int32)    # [? * neg_num * max_len]
-        target_neg_ids = tf.reshape(target_neg_ids, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len])
-        target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
-        source_neg_ids = tf.cast(source_neg_ids, dtype=tf.int32)
-        source_neg_ids = tf.reshape(source_neg_ids, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len])
         source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_ids)    # [?, num_neg, s_len, 128]
+        target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
+
+        # add position embedding into neg sentence
+        source_neg_embed = source_neg_embed + tf.tile(tf.expand_dims(self.source_pos_embed, 1), [1, self.p.num_neg, 1, 1])
+        target_neg_embed = target_neg_embed + tf.tile(tf.expand_dims(self.target_pos_embed, 1), [1, self.p.num_neg, 1, 1])
 
         source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
         target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
@@ -252,15 +271,19 @@ class SynAlign(Model):
         target_labels = tf.concat([target_pos_labels, target_neg_labels], axis=1)   # [?, num_neg+1, t_len]
 
         # loss
+        # tf.Print(source_labels, [source_labels], message='detail of source labels', summarize=1000)
+        # tf.Print(source_logits, [source_logits], message='detail of source logits', summarize=1000)
         source_loss = tf.nn.weighted_cross_entropy_with_logits(targets=source_labels, logits=source_logits, pos_weight=1.0, name='source_loss')   # [?, num_neg+1, s_len]
-        source_mask_tile = tf.tile(tf.expand_dims(source_mask, 1), [1, tf.shape(source_loss)[1], 1])
-        source_loss = tf.where(source_mask_tile, source_loss, tf.zeros(tf.shape(source_loss)))   # get valid loss
+        source_mask = tf.concat([tf.expand_dims(source_mask, axis=1), source_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
+        source_loss = tf.where(source_mask, source_loss, tf.zeros(tf.shape(source_loss)))   # get valid loss
         target_loss = tf.nn.weighted_cross_entropy_with_logits(targets=target_labels, logits=target_logits, pos_weight=1.0, name='target_loss')   # [?, num_neg+1, t_len]
-        target_mask_tile = tf.tile(tf.expand_dims(target_mask, 1), [1, tf.shape(target_loss)[1], 1])
-        target_loss = tf.where(target_mask_tile, target_loss, tf.zeros(tf.shape(target_loss)))   # get valid loss
+        target_mask = tf.concat([tf.expand_dims(target_mask, axis=1), target_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
+        target_loss = tf.where(target_mask, target_loss, tf.zeros(tf.shape(target_loss)))   # get valid loss
 
+        # source_loss = tf.Print(source_loss, [source_loss], message='detail of source loss', summarize=1000)
+        # target_loss = tf.Print(target_loss, [target_loss], message='detail of target loss', summarize=1000)
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
-
+        # loss = tf.Print(loss, [loss], message='detail of loss', summarize=1000)
         # if self.regularizer is not None:
         #     loss += tf.contrib.layers.apply_regularization(
         #         self.regularizer, tf.get_collection(
