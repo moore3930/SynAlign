@@ -573,7 +573,7 @@ if __name__ == "__main__":
     parser.add_argument('-l2', dest="l2", default=0.01, type=float, help='L2 regularization')
     parser.add_argument('-seed', dest="seed", default=1234, type=int, help='Seed for randomization')
     parser.add_argument('-sample', dest="sample", default=1e-4, type=float, help='Subsampling parameter')
-    parser.add_argument('-neg', dest="num_neg", default=10, type=int, help='Number of negative samples')
+    parser.add_argument('-neg', dest="num_neg", default=32, type=int, help='Number of negative samples')
     parser.add_argument('-side_int', dest="side_int", default=10000, type=int, help='Number of negative samples')
     parser.add_argument('-gcn_layer', dest="gcn_layer", default=1, type=int,
                         help='Number of layers in GCN over dependency tree')
