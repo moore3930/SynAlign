@@ -242,8 +242,8 @@ class SynAlign(Model):
         # pooling
         source_neg_embed = tf.reshape(source_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
         target_neg_embed = tf.reshape(target_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        source_neg_embed = tf.layers.average_pooling1d(source_neg_embed, self.p.embed_dim, 3, 1, padding='SAME')
-        target_neg_embed = tf.layers.average_pooling1d(target_neg_embed, self.p.embed_dim, 3, 1, padding='SAME')
+        source_neg_embed = tf.layers.average_pooling1d(source_neg_embed, 3, 1, padding='SAME')
+        target_neg_embed = tf.layers.average_pooling1d(target_neg_embed, 3, 1, padding='SAME')
         source_neg_embed = tf.reshape(source_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
         target_neg_embed = tf.reshape(target_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
 
