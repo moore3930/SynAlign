@@ -451,12 +451,11 @@ class SynAlign(Model):
 
         return
 
-    def get_exp_and_div(self, source_sent, source_mask, target_sent, target_mask, at_soft_score):
+    def get_exp_and_div(self, target_sent, source_mask, target_mask, at_soft_score):
         # update exp & var in an incremental way
-
-        source_mask = np.tile(np.expand_dims(source_mask, 2), [1, 1, self.p.max_sent_len])
-        target_mask = np.tile(np.expand_dims(target_mask, 1), [1, self.p.max_sent_len, 1])
-        mask = np.logical_and(source_mask, target_mask)
+        source_mask_tile = np.tile(np.expand_dims(source_mask, 2), [1, 1, self.p.max_sent_len])
+        target_mask_tile = np.tile(np.expand_dims(target_mask, 1), [1, self.p.max_sent_len, 1])
+        mask = np.logical_and(source_mask_tile, target_mask_tile)
         align_score = np.where(mask, at_soft_score, np.zeros(at_soft_score.shape, dtype=np.float32))
         batch_dict = {}
         a_word_cnt = {}
@@ -483,7 +482,8 @@ class SynAlign(Model):
         # init temporary all_exp_dict
         for wd_id in batch_dict:
             if wd_id in self.h_exp_dict:
-                all_exp_dict[wd_id] = (self.h_exp_dict[wd_id] * self.h_word_cnt[wd_id] + np.sum(batch_dict[wd_id])) / (self.h_word_cnt[wd_id] + a_word_cnt[wd_id])
+                all_exp_dict[wd_id] = (self.h_exp_dict[wd_id] * self.h_word_cnt[wd_id] + np.sum(batch_dict[wd_id]))\
+                                      / (self.h_word_cnt[wd_id] + a_word_cnt[wd_id])
             else:
                 all_exp_dict = np.mean(batch_dict[wd_id])
 
@@ -530,13 +530,13 @@ class SynAlign(Model):
             step = step + 1
             # loss, _ = sess.run([self.loss, self.train_op])
             try:
-                loss, _, source_sent, source_mask, target_sent, target_mask, at_soft_score =\
-                    sess.run([self.loss, self.train_op, self.source_sent, self.source_mask,
+                loss, _, source_mask, target_sent, target_mask, at_soft_score =\
+                    sess.run([self.loss, self.train_op,  self.source_mask,
                               self.target_sent, self.target_mask, self.at_soft_score])
             except:
                 break
             losses.append(loss)
-            self.get_exp_and_div(source_sent, source_mask, target_sent, target_mask, at_soft_score)
+            self.get_exp_and_div(target_sent, source_mask, target_mask, at_soft_score)
 
             cnt += self.p.batch_size
             if step % 10 == 0:
