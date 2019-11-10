@@ -485,7 +485,7 @@ class SynAlign(Model):
                 all_exp_dict[wd_id] = (self.h_exp_dict[wd_id] * self.h_word_cnt[wd_id] + np.sum(batch_dict[wd_id]))\
                                       / (self.h_word_cnt[wd_id] + a_word_cnt[wd_id])
             else:
-                all_exp_dict = np.mean(batch_dict[wd_id])
+                all_exp_dict[wd_id] = np.mean(batch_dict[wd_id])
 
         # update h_var_dict
         for wd_id in batch_dict:
