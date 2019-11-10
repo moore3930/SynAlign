@@ -284,9 +284,9 @@ class SynAlign(Model):
 
         # agreement loss
         ta_rebuilt_score = tf.nn.softmax(tf.transpose(ta_soft_score, [0, 2, 1]))    # [?, n, m]
-        ta_agree_loss = tf.distributions.kl_divergence(at_soft_score, ta_rebuilt_score)     # [?, n]
+        ta_agree_loss = tf.distributions.kl_divergence(tf.distributions.Categorical(at_soft_score), tf.distributions.Categorical(ta_rebuilt_score))     # [?, n]
         at_rebuilt_score = tf.nn.softmax(tf.transpose(at_soft_score, [0, 2, 1]))    # [?, m, n]
-        at_agree_loss = tf.distributions.kl_divergence(at_rebuilt_score, ta_soft_score)     # [?, m]
+        at_agree_loss = tf.distributions.kl_divergence(tf.distributions.Categorical(at_rebuilt_score), tf.distributions.Categorical(ta_soft_score))     # [?, m]
         agree_loss = tf.reduce_mean(tf.reduce_sum(ta_agree_loss)) + tf.reduce_mean(tf.reduce_sum(at_agree_loss))
 
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
