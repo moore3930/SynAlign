@@ -156,7 +156,7 @@ class SynAlign(Model):
         at_soft_score = tf.nn.softmax(at_score)     # [?, n, m]
         target_att_embed = tf.matmul(at_soft_score, target_sent_embed)  # [?, n, 128]
 
-        return source_sent_embed, source_att_embed, at_soft_score, target_sent_embed, target_att_embed, ta_soft_score
+        return source_sent_embed, source_att_embed, at_soft_score, target_sent_embed, target_att_embed
 
     def build_eval_graph(self):
         # get batch data
@@ -432,6 +432,11 @@ class SynAlign(Model):
         print("=== WA score ===")
         print("P: {}, R: {}, F1: {}".format(P, R, F1))
 
+        print('Write Alignment Done ! ')
+        P, R, F1 = get_wa_score('data/en-fr-wa.txt', 'data/en-fr-multi-eval-wa.txt')
+        print("=== Multi-WA score ===")
+        print("P: {}, R: {}, F1: {}".format(P, R, F1))
+
         return
 
     def eval_on_word_embedding(self, sess):
@@ -458,7 +463,7 @@ class SynAlign(Model):
         all_exp_dict = {}
         for i in range(target_mask.shape[0]):
             for j in range(target_mask.shape[1]):
-                if target_mask[i][j] == True:
+                if target_mask[i][j]:
                     wd_id = target_sent[i][j]
                     align_array = align_score[i, :, j]
                     align_array = align_array[source_mask[i, :]]
