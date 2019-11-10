@@ -135,9 +135,9 @@ class SynAlign(Model):
         # target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME')
 
         # conv1d
-        source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.num_neg, 3, 1, padding='SAME',
+        source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
                                              name='s_conv', reuse=tf.AUTO_REUSE)
-        target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.num_neg, 3, 1, padding='SAME',
+        target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
                                              name='t_conv', reuse=tf.AUTO_REUSE)
 
         source_mask_tile = tf.tile(tf.expand_dims(source_mask, 2), [1, 1, tf.shape(target_mask)[1]])    # [?, n, m]
@@ -166,14 +166,10 @@ class SynAlign(Model):
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
 
-        # pooling
-        # source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
-        # target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME')
-
         # conv1d
-        source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.num_neg, 3, 1, padding='SAME',
+        source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
                                              name='s_conv', reuse=tf.AUTO_REUSE)
-        target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.num_neg, 3, 1, padding='SAME',
+        target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
                                              name='t_conv', reuse=tf.AUTO_REUSE)
 
         source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
@@ -227,8 +223,6 @@ class SynAlign(Model):
             s_mask_shift_list.append(tf.roll(source_mask, shift=[i, 0], axis=[0, 1]))
         source_neg_ids = tf.stack(s_sent_shift_list, axis=1)    # [?, neg_num, max_len]
         source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, max_len]
-        # source_neg_ids = tf.Print(source_neg_ids, [source_neg_ids], message='detail of source_neg_ids', summarize=1000)
-        # source_neg_mask = tf.Print(source_neg_mask, [source_neg_mask], message='detail of source_neg_mask', summarize=1000)
 
         t_sent_shift_list = []
         t_mask_shift_list = []
@@ -240,6 +234,12 @@ class SynAlign(Model):
 
         source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_ids)    # [?, num_neg, s_len, 128]
         target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
+
+        # conv1d
+        source_neg_embed = tf.layers.conv1d(source_neg_embed, self.p.embed_dim, 3, 1, padding='SAME',
+                                            name='s_conv', reuse=tf.AUTO_REUSE)
+        target_neg_embed = tf.layers.conv1d(target_neg_embed, self.p.embed_dim, 3, 1, padding='SAME',
+                                            name='t_conv', reuse=tf.AUTO_REUSE)
 
         source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
         target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
@@ -257,8 +257,6 @@ class SynAlign(Model):
         target_labels = tf.concat([target_pos_labels, target_neg_labels], axis=1)   # [?, num_neg+1, t_len]
 
         # loss
-        # tf.Print(source_labels, [source_labels], message='detail of source labels', summarize=1000)
-        # tf.Print(source_logits, [source_logits], message='detail of source logits', summarize=1000)
         source_loss = tf.nn.weighted_cross_entropy_with_logits(targets=source_labels, logits=source_logits, pos_weight=1.0, name='source_loss')   # [?, num_neg+1, s_len]
         source_mask = tf.concat([tf.expand_dims(source_mask, axis=1), source_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
         source_loss = tf.where(source_mask, source_loss, tf.zeros(tf.shape(source_loss)))   # get valid loss
