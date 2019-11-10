@@ -497,9 +497,16 @@ class SynAlign(Model):
                 self.h_var_dict[wd_id] = (self.h_word_cnt[wd_id] * (self.h_var_dict[wd_id] + pow((all_exp_dict[wd_id] - self.h_exp_dict[wd_id]), 2)) + a_word_cnt[wd_id] * (a_var + pow((all_exp_dict[wd_id] - a_exp), 2))) \
                                          / (self.h_word_cnt[wd_id] + a_word_cnt[wd_id])
 
-        # init h_exp_dict
+        # update h_exp_dict
         for wd_id in all_exp_dict:
             self.h_exp_dict[wd_id] = all_exp_dict[wd_id]
+
+        # up h_word_cnt
+        for wd_id in a_word_cnt:
+            if wd_id in self.h_word_cnt:
+                self.h_word_cnt[wd_id] += a_word_cnt[wd_id]
+            else:
+                self.h_word_cnt[wd_id] = a_word_cnt[wd_id]
 
     def run_epoch(self, sess, epoch, shuffle=True):
         """
