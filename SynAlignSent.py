@@ -156,7 +156,7 @@ class SynAlign(Model):
         at_soft_score = tf.nn.softmax(at_score)     # [?, n, m]
         target_att_embed = tf.matmul(at_soft_score, target_sent_embed)  # [?, n, 128]
 
-        return source_sent_embed, source_att_embed, target_sent_embed, target_att_embed
+        return source_sent_embed, source_att_embed, at_soft_score, target_sent_embed, target_att_embed, ta_soft_score
 
     def build_eval_graph(self):
         # get batch data
@@ -194,9 +194,10 @@ class SynAlign(Model):
         self.st_align = tf.arg_max(st_align_score, 2, output_type=tf.int32) + 1
         self.st_align = tf.where(eval_source_mask, self.st_align, tf.zeros(tf.shape(self.st_align), dtype=tf.int32))    # [?, n]
 
-        # for debug
+        # for eval
         self.eval_source_sent = eval_source_sent
         self.eval_target_sent = eval_target_sent
+        self.st_align_score = st_align_score
 
     def build_train_graph(self):
         """
@@ -216,9 +217,13 @@ class SynAlign(Model):
             self.get_batch(self.path_to_file, self.p.batch_size, is_train=True)
         source_sent.set_shape([None, self.p.max_sent_len])
         target_sent.set_shape([None, self.p.max_sent_len])
+        self.source_sent = source_sent
+        self.source_mask = source_mask
+        self.target_sent = target_sent
+        self.target_mask = target_mask
 
         # feed into model
-        source_sent_embed, source_att_embed, target_sent_embed, target_att_embed =\
+        source_sent_embed, source_att_embed, self.at_soft_score, target_sent_embed, target_att_embed =\
             self.add_model(source_sent, target_sent, source_mask, target_mask)
 
         # shuffle the batch of sentences
@@ -353,12 +358,13 @@ class SynAlign(Model):
         fs_out = open('{}/{}-st-alginment-{}'.format(self.p.emb_dir, self.p.name, epoch), 'w')
         ft_out = open('{}/{}-ts-alginment-{}'.format(self.p.emb_dir, self.p.name, epoch), 'w')
         fs_wa_out = open('data/en-fr-eval-wa.txt', 'w')
+        fs_multi_wa_out = open('data/en-fr-multi-eval-wa.txt', 'w')
 
         while 1:
             step = step + 1
             try:
-                st_align, ts_align, s_sent, t_sent =\
-                    sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent])
+                st_align, ts_align, s_sent, t_sent, st_align_score =\
+                    sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent, self.st_align_score])
             except:
                 print('{} Alignments Writing Done ! '.format(cnt))
                 break
@@ -392,16 +398,22 @@ class SynAlign(Model):
                 ft_out.write(t_align_out + '\n')
 
             # s -> t word alignment
-            sent_num = 0
+            sent_num = cnt
             for i in range(st_align.shape[0]):
                 sent_num += 1
                 for j in range(st_align.shape[1]):
                     if st_align[i][j] > 0:
                         fs_wa_out.write('num-' + str(sent_num) + ' ' + str(j+1) + ' -> ' + str(st_align[i][j]) + '\n')
 
-            cnt += self.p.batch_size
-            if step % 10 == 0:
-                self.logger.info('Write Sents: {}'.format(cnt))
+            # s -> t multi word alignment
+            sent_num = cnt
+            for s in range(st_align_score.shape[0]):
+                sent_num += 1
+                for i in range(st_align_score.shape[1]):
+                    for j in range(st_align_score.shape[2]):
+                        wd_id = t_sent[j]
+                        if st_align_score[j] > self.h_exp_dict[wd_id] + self.h_var_dict[wd_id]:
+                            fs_multi_wa_out.write('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(j + 1) + '\n')
 
             cnt += self.p.batch_size
             if step % 10 == 0:
@@ -413,6 +425,8 @@ class SynAlign(Model):
         ft_out.close()
         fs_wa_out.flush()
         fs_wa_out.close()
+        fs_multi_wa_out.flush()
+        fs_multi_wa_out.close()
         print('Write Alignment Done ! ')
         P, R, F1 = get_wa_score('data/en-fr-wa.txt', 'data/en-fr-eval-wa.txt')
         print("=== WA score ===")
@@ -431,6 +445,56 @@ class SynAlign(Model):
         self.logger.info('Current Source Word2vec Score: {}'.format(curr_int))
 
         return
+
+    def get_exp_and_div(self, source_sent, source_mask, target_sent, target_mask, at_soft_score):
+        # update exp & var in an incremental way
+
+        source_mask = np.tile(np.expand_dims(source_mask, 2), [1, 1, self.p.max_sent_len])
+        target_mask = np.tile(np.expand_dims(target_mask, 1), [1, self.p.max_sent_len, 1])
+        mask = np.logical_and(source_mask, target_mask)
+        align_score = np.where(mask, at_soft_score, np.zeros(at_soft_score.shape, dtype=np.float32))
+        batch_dict = {}
+        a_word_cnt = {}
+        all_exp_dict = {}
+        for i in range(target_mask.shape[0]):
+            for j in range(target_mask.shape[1]):
+                if target_mask[i][j] == True:
+                    wd_id = target_sent[i][j]
+                    align_array = align_score[i, :, j]
+                    align_array = align_array[source_mask[i, :]]
+
+                    if wd_id not in batch_dict:
+                        batch_dict[wd_id] = [align_array]
+                        a_word_cnt[wd_id] = 1
+                    else:
+                        batch_dict[wd_id].append(align_array)
+                        a_word_cnt[wd_id] += 1
+
+        # update batch_dict
+        for wd_id in batch_dict:
+            temp_array = np.concatenate(batch_dict[wd_id])
+            batch_dict[wd_id] = temp_array
+
+        # init temporary all_exp_dict
+        for wd_id in batch_dict:
+            if wd_id in self.h_exp_dict:
+                all_exp_dict[wd_id] = (self.h_exp_dict[wd_id] * self.h_word_cnt[wd_id] + np.sum(batch_dict[wd_id])) / (self.h_word_cnt[wd_id] + a_word_cnt[wd_id])
+            else:
+                all_exp_dict = np.mean(batch_dict[wd_id])
+
+        # update h_var_dict
+        for wd_id in batch_dict:
+            a_exp = np.mean(batch_dict[wd_id])
+            a_var = np.var(batch_dict[wd_id])
+            if wd_id not in self.h_var_dict:
+                self.h_var_dict[wd_id] = a_var
+            else:
+                self.h_var_dict[wd_id] = (self.h_word_cnt[wd_id] * (self.h_var_dict[wd_id] + pow((all_exp_dict[wd_id] - self.h_exp_dict[wd_id]), 2)) + a_word_cnt[wd_id] * (a_var + pow((all_exp_dict[wd_id] - a_exp), 2))) \
+                                         / (self.h_word_cnt[wd_id] + a_word_cnt[wd_id])
+
+        # init h_exp_dict
+        for wd_id in all_exp_dict:
+            self.h_exp_dict[wd_id] = all_exp_dict[wd_id]
 
     def run_epoch(self, sess, epoch, shuffle=True):
         """
@@ -452,14 +516,22 @@ class SynAlign(Model):
         st = time.time()
         sess.run(self.train_iter.initializer)
 
+        # exp & div dict
+        self.h_word_cnt = {}
+        self.h_exp_dict = {}
+        self.h_var_dict = {}
+
         while 1:
             step = step + 1
             # loss, _ = sess.run([self.loss, self.train_op])
             try:
-                loss, _ = sess.run([self.loss, self.train_op])
+                loss, _, source_sent, source_mask, target_sent, target_mask, at_soft_score =\
+                    sess.run([self.loss, self.train_op, self.source_sent, self.source_mask,
+                              self.target_sent, self.target_mask, self.at_soft_score])
             except:
                 break
             losses.append(loss)
+            self.get_exp_and_div(source_sent, source_mask, target_sent, target_mask, at_soft_score)
 
             cnt += self.p.batch_size
             if step % 10 == 0:
