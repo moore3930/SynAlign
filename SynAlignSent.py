@@ -77,8 +77,10 @@ class SynAlign(Model):
 
         return source_ids, target_ids, source_mask, target_mask
 
-    def get_batch(self, path, batch_size):
+    def get_batch(self, path, batch_size, is_train=False):
         dataset = tf.data.TextLineDataset([path])
+        if is_train:
+            dataset = dataset.shuffle(1000)
         dataset = dataset.batch(batch_size)
         iter = dataset.make_initializable_iterator()
         batch = iter.get_next()
@@ -211,7 +213,7 @@ class SynAlign(Model):
 
         # get batch data
         source_sent, target_sent, source_mask, target_mask, self.train_iter =\
-            self.get_batch(self.path_to_file, self.p.batch_size)
+            self.get_batch(self.path_to_file, self.p.batch_size, is_train=True)
         source_sent.set_shape([None, self.p.max_sent_len])
         target_sent.set_shape([None, self.p.max_sent_len])
 
@@ -247,9 +249,6 @@ class SynAlign(Model):
         source_neg_embed = tf.reshape(source_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
         target_neg_embed = tf.reshape(target_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
 
-        source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
-        target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
-
         # # conv1d
         # source_neg_embed = tf.reshape(source_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
         # target_neg_embed = tf.reshape(target_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
@@ -259,9 +258,9 @@ class SynAlign(Model):
         #                                     name='t_conv', reuse=tf.AUTO_REUSE)
         # source_neg_embed = tf.reshape(source_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
         # target_neg_embed = tf.reshape(target_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
-        #
-        # source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
-        # target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
+
+        source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
+        target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
 
         # logits
         source_logits = tf.reduce_sum(tf.multiply(source_embed, tf.tile(tf.expand_dims(target_att_embed, 1), [1, self.p.num_neg+1, 1, 1])), 3)  # [?, num_neg+1, s_len]
@@ -574,7 +573,7 @@ if __name__ == "__main__":
     parser.add_argument('-l2', dest="l2", default=0.01, type=float, help='L2 regularization')
     parser.add_argument('-seed', dest="seed", default=1234, type=int, help='Seed for randomization')
     parser.add_argument('-sample', dest="sample", default=1e-4, type=float, help='Subsampling parameter')
-    parser.add_argument('-neg', dest="num_neg", default=10, type=int, help='Number of negative samples')
+    parser.add_argument('-num_neg', dest="num_neg", default=32, type=int, help='Number of negative samples')
     parser.add_argument('-side_int', dest="side_int", default=10000, type=int, help='Number of negative samples')
     parser.add_argument('-gcn_layer', dest="gcn_layer", default=1, type=int,
                         help='Number of layers in GCN over dependency tree')
