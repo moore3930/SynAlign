@@ -131,14 +131,14 @@ class SynAlign(Model):
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
 
         # pooling
-        # source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
-        # target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME')
+        source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
+        target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME')
 
-        # conv1d
-        source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
-                                             name='s_conv', reuse=tf.AUTO_REUSE)
-        target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
-                                             name='t_conv', reuse=tf.AUTO_REUSE)
+        # # conv1d
+        # source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
+        #                                      name='s_conv', reuse=tf.AUTO_REUSE)
+        # target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
+        #                                      name='t_conv', reuse=tf.AUTO_REUSE)
 
         source_mask_tile = tf.tile(tf.expand_dims(source_mask, 2), [1, 1, tf.shape(target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(target_mask, 1), [1, tf.shape(source_mask)[1], 1])    # [?, n, m]
@@ -166,11 +166,15 @@ class SynAlign(Model):
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
 
-        # conv1d
-        source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
-                                             name='s_conv', reuse=tf.AUTO_REUSE)
-        target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
-                                             name='t_conv', reuse=tf.AUTO_REUSE)
+        # pooling
+        source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
+        target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME')
+
+        # # conv1d
+        # source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
+        #                                      name='s_conv', reuse=tf.AUTO_REUSE)
+        # target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
+        #                                      name='t_conv', reuse=tf.AUTO_REUSE)
 
         source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(eval_target_mask, 1), [1, tf.shape(eval_source_mask)[1], 1])    # [?, n, m]
@@ -235,18 +239,29 @@ class SynAlign(Model):
         source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_ids)    # [?, num_neg, s_len, 128]
         target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
 
-        # conv1d
+        # pooling
         source_neg_embed = tf.reshape(source_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
         target_neg_embed = tf.reshape(target_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        source_neg_embed = tf.layers.conv1d(source_neg_embed, self.p.embed_dim, 3, 1, padding='SAME',
-                                            name='s_conv', reuse=tf.AUTO_REUSE)
-        target_neg_embed = tf.layers.conv1d(target_neg_embed, self.p.embed_dim, 3, 1, padding='SAME',
-                                            name='t_conv', reuse=tf.AUTO_REUSE)
+        source_neg_embed = tf.layers.average_pooling1d(source_neg_embed, self.p.embed_dim, 3, 1, padding='SAME')
+        target_neg_embed = tf.layers.average_pooling1d(target_neg_embed, self.p.embed_dim, 3, 1, padding='SAME')
         source_neg_embed = tf.reshape(source_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
         target_neg_embed = tf.reshape(target_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
 
         source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
         target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
+
+        # # conv1d
+        # source_neg_embed = tf.reshape(source_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
+        # target_neg_embed = tf.reshape(target_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
+        # source_neg_embed = tf.layers.conv1d(source_neg_embed, self.p.embed_dim, 3, 1, padding='SAME',
+        #                                     name='s_conv', reuse=tf.AUTO_REUSE)
+        # target_neg_embed = tf.layers.conv1d(target_neg_embed, self.p.embed_dim, 3, 1, padding='SAME',
+        #                                     name='t_conv', reuse=tf.AUTO_REUSE)
+        # source_neg_embed = tf.reshape(source_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
+        # target_neg_embed = tf.reshape(target_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
+        #
+        # source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
+        # target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
 
         # logits
         source_logits = tf.reduce_sum(tf.multiply(source_embed, tf.tile(tf.expand_dims(target_att_embed, 1), [1, self.p.num_neg+1, 1, 1])), 3)  # [?, num_neg+1, s_len]
@@ -268,8 +283,6 @@ class SynAlign(Model):
         target_mask = tf.concat([tf.expand_dims(target_mask, axis=1), target_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
         target_loss = tf.where(target_mask, target_loss, tf.zeros(tf.shape(target_loss)))   # get valid loss
 
-        # source_loss = tf.Print(source_loss, [source_loss], message='detail of source loss', summarize=1000)
-        # target_loss = tf.Print(target_loss, [target_loss], message='detail of target loss', summarize=1000)
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
         # loss = tf.Print(loss, [loss], message='detail of loss', summarize=1000)
         # if self.regularizer is not None:
