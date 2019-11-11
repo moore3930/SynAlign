@@ -358,7 +358,8 @@ class SynAlign(Model):
         fs_out = open('{}/{}-st-alginment-{}'.format(self.p.emb_dir, self.p.name, epoch), 'w')
         ft_out = open('{}/{}-ts-alginment-{}'.format(self.p.emb_dir, self.p.name, epoch), 'w')
         fs_wa_out = open('data/en-fr-eval-wa.txt', 'w')
-        fs_multi_wa_out = open('data/en-fr-multi-eval-wa.txt', 'w')
+        fs_multi_wa_out_1 = open('data/en-fr-multi-eval-wa-1.txt', 'w')
+        fs_multi_wa_out_2 = open('data/en-fr-multi-eval-wa-2.txt', 'w')
 
         while 1:
             step = step + 1
@@ -405,8 +406,9 @@ class SynAlign(Model):
                     if st_align[i][j] > 0:
                         fs_wa_out.write('num-' + str(sent_num) + ' ' + str(j+1) + ' -> ' + str(st_align[i][j]) + '\n')
 
-            # s -> t multi word alignment
+            # s -> t multi word alignment 1
             sent_num = cnt
+            print_set_1 = set()
             for s in range(st_align_score.shape[0]):
                 sent_num += 1
                 for i in range(st_align_score.shape[1]):
@@ -414,15 +416,42 @@ class SynAlign(Model):
                         wd_id = t_sent[s][j]
                         if wd_id <= 0:
                             continue
-                        # print(wd_id)
-                        # print(st_align_score[s][i][j])
-                        # print(self.h_exp_dict[wd_id])
-                        # print(self.h_var_dict[wd_id])
                         # OOV problem
                         if wd_id not in self.h_exp_dict or wd_id not in self.h_var_dict:
                             continue
                         if st_align_score[s][i][j] > self.h_exp_dict[wd_id] + self.h_var_dict[wd_id]:
-                            fs_multi_wa_out.write('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(j + 1) + '\n')
+                            print_set_1.add('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(j + 1) + '\n')
+
+            # s -> t multi word alignment 2
+            sent_num = cnt
+            print_set_2 = set()
+            for s in range(st_align_score.shape[0]):
+                sent_num += 1
+                for i in range(st_align_score.shape[1]):
+                    for j in range(st_align_score.shape[2]):
+                        wd_id = t_sent[s][j]
+                        if wd_id <= 0:
+                            continue
+                        # OOV problem
+                        if wd_id not in self.h_exp_dict or wd_id not in self.h_var_dict:
+                            continue
+                        if st_align_score[s][i][j] > self.h_exp_dict[wd_id] + 2 * self.h_var_dict[wd_id]:
+                            print_set_2.add('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(j + 1) + '\n')
+
+            # make sure the word get max score in the print set
+            max_score_alignment = np.argmax(st_align_score, 2)
+            sent_num = cnt
+            for i in max_score_alignment.shape[0]:
+                sent_num += 1
+                for j in max_score_alignment.shape[1]:
+                    print_set_1.add('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(max_score_alignment[i][j]) + '\n')
+                    print_set_2.add('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(max_score_alignment[i][j]) + '\n')
+
+            # write down
+            for align in print_set_1:
+                fs_multi_wa_out_1.write(align)
+            for align in print_set_2:
+                fs_multi_wa_out_2.write(align)
 
             cnt += self.p.batch_size
             if step % 10 == 0:
@@ -434,16 +463,21 @@ class SynAlign(Model):
         ft_out.close()
         fs_wa_out.flush()
         fs_wa_out.close()
-        fs_multi_wa_out.flush()
-        fs_multi_wa_out.close()
+        fs_multi_wa_out_1.flush()
+        fs_multi_wa_out_1.close()
+        fs_multi_wa_out_2.flush()
+        fs_multi_wa_out_2.close()
         print('Write Alignment Done ! ')
         P, R, F1 = get_wa_score('data/en-fr-wa.txt', 'data/en-fr-eval-wa.txt')
         print("=== WA score ===")
         print("P: {}, R: {}, F1: {}".format(P, R, F1))
 
-        print('Write Alignment Done ! ')
-        P, R, F1 = get_wa_score('data/en-fr-wa.txt', 'data/en-fr-multi-eval-wa.txt')
-        print("=== Multi-WA score ===")
+        P, R, F1 = get_wa_score('data/en-fr-wa.txt', 'data/en-fr-multi-eval-wa-1.txt')
+        print("=== Multi-WA-1 score ===")
+        print("P: {}, R: {}, F1: {}".format(P, R, F1))
+
+        P, R, F1 = get_wa_score('data/en-fr-wa.txt', 'data/en-fr-multi-eval-wa-2.txt')
+        print("=== Multi-WA-2 score ===")
         print("P: {}, R: {}, F1: {}".format(P, R, F1))
 
         return
