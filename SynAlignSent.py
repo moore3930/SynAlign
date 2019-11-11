@@ -185,7 +185,7 @@ class SynAlign(Model):
         ta_score = tf.matmul(target_sent_embed, source_sent_embed, transpose_b=True)    # [?, m, n]
         ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), ta_score, tf.ones(tf.shape(ta_score), dtype=tf.float32) * -999)    # [?, m, n]
         ts_align_score = tf.nn.softmax(ta_score)     # [?, m, n]
-        self.ts_align = tf.argmax(ts_align_score, 2, output_type=tf.int32) + 1
+        self.ts_align = tf.math.argmax(ts_align_score, 2, output_type=tf.int32) + 1
         self.ts_align = tf.where(eval_target_mask, self.ts_align, tf.zeros(tf.shape(self.ts_align), dtype=tf.int32))    # [?, m]
 
         at_score = tf.transpose(ta_score, perm=[0, 2, 1])   # [?, n, m]
@@ -225,16 +225,16 @@ class SynAlign(Model):
         s_sent_shift_list = []
         s_mask_shift_list = []
         for i in range(1, self.p.num_neg + 1):
-            s_sent_shift_list.append(tf.roll(source_sent, shift=[i, 0], axis=[0, 1]))
-            s_mask_shift_list.append(tf.roll(source_mask, shift=[i, 0], axis=[0, 1]))
+            s_sent_shift_list.append(tf.manip.roll(source_sent, shift=[i, 0], axis=[0, 1]))
+            s_mask_shift_list.append(tf.manip.roll(source_mask, shift=[i, 0], axis=[0, 1]))
         source_neg_ids = tf.stack(s_sent_shift_list, axis=1)    # [?, neg_num, max_len]
         source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, max_len]
 
         t_sent_shift_list = []
         t_mask_shift_list = []
         for i in range(1, self.p.num_neg + 1):
-            t_sent_shift_list.append(tf.roll(target_sent, shift=[i, 0], axis=[0, 1]))
-            t_mask_shift_list.append(tf.roll(target_mask, shift=[i, 0], axis=[0, 1]))
+            t_sent_shift_list.append(tf.manip.roll(target_sent, shift=[i, 0], axis=[0, 1]))
+            t_mask_shift_list.append(tf.manip.roll(target_mask, shift=[i, 0], axis=[0, 1]))
         target_neg_ids = tf.stack(t_sent_shift_list, axis=1)    # [?, neg_num, max_len]
         target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, neg_num, max_len]
 
@@ -307,7 +307,7 @@ class SynAlign(Model):
         """
         with tf.name_scope('Optimizer'):
             if isAdam:
-                optimizer = tf.train.AdamOptimizer(self.p.lr)
+                optimizer = tf.compat.v1.train.AdamOptimizer(self.p.lr)
             else:
                 optimizer = tf.train.GradientDescentOptimizer(self.p.lr)
             train_op = optimizer.minimize(loss)
@@ -491,7 +491,7 @@ class SynAlign(Model):
         Returns
         -------
         """
-        self.saver = tf.train.Saver()
+        self.saver = tf.compat.v1.train.Saver()
         save_dir = 'checkpoints/' + self.p.name + '/'
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -612,7 +612,7 @@ if __name__ == "__main__":
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:
-        sess.run(tf.global_variables_initializer())
+        sess.run(tf.compat.v1.global_variables_initializer())
         model.fit(sess)
 
     print('Model Trained Successfully!!')
