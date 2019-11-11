@@ -172,24 +172,18 @@ class SynAlign(Model):
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
         target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME')
 
-        # # conv1d
-        # source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
-        #                                      name='s_conv', reuse=tf.AUTO_REUSE)
-        # target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
-        #                                      name='t_conv', reuse=tf.AUTO_REUSE)
-
         source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(eval_target_mask, 1), [1, tf.shape(eval_source_mask)[1], 1])    # [?, n, m]
         mask = tf.logical_and(source_mask_tile, target_mask_tile)    # [?, n, m]
 
-        ta_score = tf.matmul(target_sent_embed, source_sent_embed, transpose_b=True)    # [?, m, n]
-        ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), ta_score, tf.ones(tf.shape(ta_score), dtype=tf.float32) * -999)    # [?, m, n]
+        mul_score = tf.matmul(target_sent_embed, source_sent_embed, transpose_b=True)    # [?, m, n]
+
+        ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), mul_score, tf.ones(tf.shape(mul_score), dtype=tf.float32) * -999)    # [?, m, n]
         ts_align_score = tf.nn.softmax(ta_score)     # [?, m, n]
         self.ts_align = tf.argmax(ts_align_score, 2, output_type=tf.int32) + 1
         self.ts_align = tf.where(eval_target_mask, self.ts_align, tf.zeros(tf.shape(self.ts_align), dtype=tf.int32))    # [?, m]
 
-        at_score = tf.transpose(ta_score, perm=[0, 2, 1])   # [?, n, m]
-        at_score = tf.where(mask, at_score, tf.ones(tf.shape(at_score), dtype=tf.float32) * -999)    # [?, n, m]
+        at_score = tf.where(mask, tf.transpose(mul_score, perm=[0, 2, 1]), tf.ones(tf.shape(mul_score), dtype=tf.float32) * -999)    # [?, n, m]
         st_align_score = tf.nn.softmax(at_score)     # [?, n, m]
         self.st_align = tf.arg_max(st_align_score, 2, output_type=tf.int32) + 1
         self.st_align = tf.where(eval_source_mask, self.st_align, tf.zeros(tf.shape(self.st_align), dtype=tf.int32))    # [?, n]
@@ -198,6 +192,7 @@ class SynAlign(Model):
         self.eval_source_sent = eval_source_sent
         self.eval_target_sent = eval_target_sent
         self.st_align_score = st_align_score
+
 
     def build_train_graph(self):
         """
