@@ -463,11 +463,11 @@ class SynAlign(Model):
 
         while 1:
             step = step + 1
-            loss, _ = sess.run([self.loss, self.train_op])
-            # try:
-            #     loss, _ = sess.run([self.loss, self.train_op])
-            # except:
-            #     break
+            # loss, _ = sess.run([self.loss, self.train_op])
+            try:
+                loss, _ = sess.run([self.loss, self.train_op])
+            except:
+                break
             losses.append(loss)
 
             cnt += self.p.batch_size
