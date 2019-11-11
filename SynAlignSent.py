@@ -441,9 +441,9 @@ class SynAlign(Model):
             # make sure the word get max score in the print set
             max_score_alignment = np.argmax(st_align_score, 2)
             sent_num = cnt
-            for i in max_score_alignment.shape[0]:
+            for i in range(max_score_alignment.shape[0]):
                 sent_num += 1
-                for j in max_score_alignment.shape[1]:
+                for j in range(max_score_alignment.shape[1]):
                     print_set_1.add('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(max_score_alignment[i][j]) + '\n')
                     print_set_2.add('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(max_score_alignment[i][j]) + '\n')
 
