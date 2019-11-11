@@ -117,6 +117,14 @@ class SynAlign(Model):
                                                initializer=tf.contrib.layers.xavier_initializer())
             print("Embedding init done !")
 
+        # init pos embedding
+        self.source_pos_emb_table = tf.get_variable(name='source_pos_emb', shape=[500, self.p.embed_dim],
+                                                    initializer=tf.contrib.layers.xavier_initializer())
+        self.target_pos_emb_table = tf.get_variable(name='target_pos_emb', shape=[500, self.p.embed_dim],
+                                                    initializer=tf.contrib.layers.xavier_initializer())
+        self.pos_ids = tf.constant([[i for i in range(self.p.max_sent_len)]], dtype=tf.int32)
+        print("Position Embedding init done !")
+
     def add_model(self, source_sent, target_sent, source_mask, target_mask):
         """
         Creates the Computational Graph
@@ -131,6 +139,19 @@ class SynAlign(Model):
 
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
+
+        # add position
+        source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, tf.tile(self.pos_ids, [tf.shape(source_sent_embed)[0], 1]))
+        target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, tf.tile(self.pos_ids, [tf.shape(target_sent_embed)[0], 1]))
+
+        source_sent_embed = source_sent_embed + source_pos_embed
+        target_sent_embed = target_sent_embed + target_pos_embed
+        source_sent_embed = tf.layers.dense(source_sent_embed, self.p.embed_dim,
+                                            kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                            name='s_dense', reuse=tf.AUTO_REUSE)
+        target_sent_embed = tf.layers.dense(target_sent_embed, self.p.embed_dim,
+                                            kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                            name='t_dense', reuse=tf.AUTO_REUSE)
 
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
@@ -168,15 +189,21 @@ class SynAlign(Model):
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
 
+        # add position
+        source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, tf.tile(self.pos_ids, [tf.shape(source_sent_embed)[0], 1]))
+        target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, tf.tile(self.pos_ids, [tf.shape(target_sent_embed)[0], 1]))
+        source_sent_embed = source_sent_embed + source_pos_embed
+        target_sent_embed = target_sent_embed + target_pos_embed
+        source_sent_embed = tf.layers.dense(source_sent_embed, self.p.embed_dim,
+                                            kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                            name='s_dense', reuse=tf.AUTO_REUSE)
+        target_sent_embed = tf.layers.dense(target_sent_embed, self.p.embed_dim,
+                                            kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                            name='t_dense', reuse=tf.AUTO_REUSE)
+
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
         target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME')
-
-        # # conv1d
-        # source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
-        #                                      name='s_conv', reuse=tf.AUTO_REUSE)
-        # target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
-        #                                      name='t_conv', reuse=tf.AUTO_REUSE)
 
         source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(eval_target_mask, 1), [1, tf.shape(eval_source_mask)[1], 1])    # [?, n, m]
@@ -240,24 +267,6 @@ class SynAlign(Model):
 
         source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_ids)    # [?, num_neg, s_len, 128]
         target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
-
-        # # pooling
-        # source_neg_embed = tf.reshape(source_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        # target_neg_embed = tf.reshape(target_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        # source_neg_embed = tf.layers.average_pooling1d(source_neg_embed, 3, 1, padding='SAME')
-        # target_neg_embed = tf.layers.average_pooling1d(target_neg_embed, 3, 1, padding='SAME')
-        # source_neg_embed = tf.reshape(source_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
-        # target_neg_embed = tf.reshape(target_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
-
-        # # conv1d
-        # source_neg_embed = tf.reshape(source_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        # target_neg_embed = tf.reshape(target_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        # source_neg_embed = tf.layers.conv1d(source_neg_embed, self.p.embed_dim, 3, 1, padding='SAME',
-        #                                     name='s_conv', reuse=tf.AUTO_REUSE)
-        # target_neg_embed = tf.layers.conv1d(target_neg_embed, self.p.embed_dim, 3, 1, padding='SAME',
-        #                                     name='t_conv', reuse=tf.AUTO_REUSE)
-        # source_neg_embed = tf.reshape(source_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
-        # target_neg_embed = tf.reshape(target_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
 
         source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
         target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
@@ -454,11 +463,11 @@ class SynAlign(Model):
 
         while 1:
             step = step + 1
-            # loss, _ = sess.run([self.loss, self.train_op])
-            try:
-                loss, _ = sess.run([self.loss, self.train_op])
-            except:
-                break
+            loss, _ = sess.run([self.loss, self.train_op])
+            # try:
+            #     loss, _ = sess.run([self.loss, self.train_op])
+            # except:
+            #     break
             losses.append(loss)
 
             cnt += self.p.batch_size
