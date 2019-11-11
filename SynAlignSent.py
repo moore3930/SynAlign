@@ -475,10 +475,9 @@ class SynAlign(Model):
 
                     if wd_id not in batch_dict:
                         batch_dict[wd_id] = [align_array]
-                        a_word_cnt[wd_id] = 1
                     else:
                         batch_dict[wd_id].append(align_array)
-                        a_word_cnt[wd_id] += 1
+                    a_word_cnt[wd_id] = len(align_array)
 
         # update batch_dict
         for wd_id in batch_dict:
@@ -507,7 +506,7 @@ class SynAlign(Model):
         for wd_id in all_exp_dict:
             self.h_exp_dict[wd_id] = all_exp_dict[wd_id]
 
-        # up h_word_cnt
+        # update h_word_cnt
         for wd_id in a_word_cnt:
             if wd_id in self.h_word_cnt:
                 self.h_word_cnt[wd_id] += a_word_cnt[wd_id]
