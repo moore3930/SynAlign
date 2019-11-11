@@ -412,11 +412,13 @@ class SynAlign(Model):
                 for i in range(st_align_score.shape[1]):
                     for j in range(st_align_score.shape[2]):
                         wd_id = t_sent[s][j]
+                        if wd_id <= 0:
+                            continue
                         print(wd_id)
                         print(st_align_score[s][i][j])
                         print(self.h_exp_dict[wd_id])
                         print(self.h_var_dict[wd_id])
-                        if wd_id > 0 and st_align_score[s][i][j] > self.h_exp_dict[wd_id] + self.h_var_dict[wd_id]:
+                        if st_align_score[s][i][j] > self.h_exp_dict[wd_id] + self.h_var_dict[wd_id]:
                             fs_multi_wa_out.write('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(j + 1) + '\n')
 
             cnt += self.p.batch_size
