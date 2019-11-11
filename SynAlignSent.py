@@ -417,6 +417,7 @@ class SynAlign(Model):
                         print(type(st_align_score))
                         print(st_align_score)
                         print(st_align_score[s][i][j])
+                        print(self.h_exp_dict)
                         print(self.h_exp_dict[wd_id])
                         print(self.h_var_dict[wd_id])
                         if st_align_score[s][i][j] > self.h_exp_dict[wd_id] + self.h_var_dict[wd_id]:
