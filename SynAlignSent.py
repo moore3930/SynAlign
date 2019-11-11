@@ -411,15 +411,7 @@ class SynAlign(Model):
                 sent_num += 1
                 for i in range(st_align_score.shape[1]):
                     for j in range(st_align_score.shape[2]):
-                        wd_id = t_sent[j]
-                        print(type(self.h_exp_dict))
-                        print(type(self.h_var_dict))
-                        print(type(st_align_score))
-                        print(st_align_score)
-                        print(st_align_score[s][i][j])
-                        print(self.h_exp_dict)
-                        print(self.h_exp_dict[wd_id])
-                        print(self.h_var_dict[wd_id])
+                        wd_id = t_sent[s][j]
                         if st_align_score[s][i][j] > self.h_exp_dict[wd_id] + self.h_var_dict[wd_id]:
                             fs_multi_wa_out.write('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(j + 1) + '\n')
 
