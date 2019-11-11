@@ -418,6 +418,9 @@ class SynAlign(Model):
                         # print(st_align_score[s][i][j])
                         # print(self.h_exp_dict[wd_id])
                         # print(self.h_var_dict[wd_id])
+                        # OOV problem
+                        if wd_id not in self.h_exp_dict or wd_id not in self.h_var_dict:
+                            continue
                         if st_align_score[s][i][j] > self.h_exp_dict[wd_id] + self.h_var_dict[wd_id]:
                             fs_multi_wa_out.write('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(j + 1) + '\n')
 
