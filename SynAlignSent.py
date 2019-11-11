@@ -316,7 +316,7 @@ class SynAlign(Model):
         """
         with tf.name_scope('Optimizer'):
             if isAdam:
-                optimizer = tf.compat.v1.train.AdamOptimizer(self.p.lr)
+                optimizer = tf.train.AdamOptimizer(self.p.lr)
             else:
                 optimizer = tf.train.GradientDescentOptimizer(self.p.lr)
             train_op = optimizer.minimize(loss)
@@ -500,7 +500,7 @@ class SynAlign(Model):
         Returns
         -------
         """
-        self.saver = tf.compat.v1.train.Saver()
+        self.saver = tf.train.Saver()
         save_dir = 'checkpoints/' + self.p.name + '/'
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -621,7 +621,7 @@ if __name__ == "__main__":
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:
-        sess.run(tf.compat.v1.global_variables_initializer())
+        sess.run(tf.global_variables_initializer())
         model.fit(sess)
 
     print('Model Trained Successfully!!')
