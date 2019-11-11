@@ -249,24 +249,42 @@ class SynAlign(Model):
             self.add_model(source_sent, target_sent, source_mask, target_mask)
 
         # shuffle the batch of sentences
-        s_sent_shift_list = []
+        s_sent_emb_shift_list = []
         s_mask_shift_list = []
         for i in range(1, self.p.num_neg + 1):
-            s_sent_shift_list.append(tf.manip.roll(source_sent, shift=[i, 0], axis=[0, 1]))
+            s_sent_emb_shift_list.append(tf.manip.roll(source_sent_embed, shift=[i, 0, 0], axis=[0, 1, 2]))
             s_mask_shift_list.append(tf.manip.roll(source_mask, shift=[i, 0], axis=[0, 1]))
-        source_neg_ids = tf.stack(s_sent_shift_list, axis=1)    # [?, neg_num, max_len]
+        source_neg_embed = tf.stack(s_sent_emb_shift_list, axis=1)  # [?, neg_num, s_len, 128]
         source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, max_len]
 
-        t_sent_shift_list = []
+        t_sent_emb_shift_list = []
         t_mask_shift_list = []
         for i in range(1, self.p.num_neg + 1):
-            t_sent_shift_list.append(tf.manip.roll(target_sent, shift=[i, 0], axis=[0, 1]))
+            t_sent_emb_shift_list.append(tf.manip.roll(target_sent_embed, shift=[i, 0, 0], axis=[0, 1, 2]))
             t_mask_shift_list.append(tf.manip.roll(target_mask, shift=[i, 0], axis=[0, 1]))
-        target_neg_ids = tf.stack(t_sent_shift_list, axis=1)    # [?, neg_num, max_len]
+        target_neg_embed = tf.stack(t_sent_emb_shift_list, axis=1)    # [?, neg_num, t_len, 128]
         target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, neg_num, max_len]
 
-        source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_ids)    # [?, num_neg, s_len, 128]
-        target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
+        #
+        # # shuffle the batch of sentences
+        # s_sent_shift_list = []
+        # s_mask_shift_list = []
+        # for i in range(1, self.p.num_neg + 1):
+        #     s_sent_shift_list.append(tf.manip.roll(source_sent, shift=[i, 0], axis=[0, 1]))
+        #     s_mask_shift_list.append(tf.manip.roll(source_mask, shift=[i, 0], axis=[0, 1]))
+        # source_neg_ids = tf.stack(s_sent_shift_list, axis=1)    # [?, neg_num, max_len]
+        # source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, max_len]
+        #
+        # t_sent_shift_list = []
+        # t_mask_shift_list = []
+        # for i in range(1, self.p.num_neg + 1):
+        #     t_sent_shift_list.append(tf.manip.roll(target_sent, shift=[i, 0], axis=[0, 1]))
+        #     t_mask_shift_list.append(tf.manip.roll(target_mask, shift=[i, 0], axis=[0, 1]))
+        # target_neg_ids = tf.stack(t_sent_shift_list, axis=1)    # [?, neg_num, max_len]
+        # target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, neg_num, max_len]
+        #
+        # source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_ids)    # [?, num_neg, s_len, 128]
+        # target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
 
         source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
         target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
@@ -277,10 +295,10 @@ class SynAlign(Model):
 
         # labels
         source_pos_labels = tf.expand_dims(tf.ones(tf.shape(source_sent), dtype=tf.float32), 1)    # [?, 1, s_len]
-        source_neg_labels = tf.zeros(tf.shape(source_neg_ids), dtype=tf.float32)    # [?, num_neg, s_len]
+        source_neg_labels = tf.zeros(tf.shape(source_neg_mask), dtype=tf.float32)    # [?, num_neg, s_len]
         source_labels = tf.concat([source_pos_labels, source_neg_labels], axis=1)   # [?, num_neg+1, s_len]
         target_pos_labels = tf.expand_dims(tf.ones(tf.shape(target_sent), dtype=tf.float32), 1)    # [?, 1, t_len]
-        target_neg_labels = tf.zeros(tf.shape(target_neg_ids), dtype=tf.float32)    # [?, num_neg, t_len]
+        target_neg_labels = tf.zeros(tf.shape(target_neg_mask), dtype=tf.float32)    # [?, num_neg, t_len]
         target_labels = tf.concat([target_pos_labels, target_neg_labels], axis=1)   # [?, num_neg+1, t_len]
 
         # loss
