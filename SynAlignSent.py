@@ -475,9 +475,10 @@ class SynAlign(Model):
 
                     if wd_id not in batch_dict:
                         batch_dict[wd_id] = [align_array]
+                        a_word_cnt[wd_id] = len(align_array)
                     else:
                         batch_dict[wd_id].append(align_array)
-                    a_word_cnt[wd_id] = len(align_array)
+                        a_word_cnt[wd_id] += len(align_array)
 
         # update batch_dict
         for wd_id in batch_dict:
