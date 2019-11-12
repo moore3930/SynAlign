@@ -136,27 +136,23 @@ class SynAlign(Model):
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
         target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME')
 
-        # # conv1d
-        # source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
-        #                                      name='s_conv', reuse=tf.AUTO_REUSE)
-        # target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.embed_dim, 3, 1, padding='SAME',
-        #                                      name='t_conv', reuse=tf.AUTO_REUSE)
-
         source_mask_tile = tf.tile(tf.expand_dims(source_mask, 2), [1, 1, tf.shape(target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(target_mask, 1), [1, tf.shape(source_mask)[1], 1])    # [?, n, m]
         mask = tf.logical_and(source_mask_tile, target_mask_tile)    # [?, n, m]
 
-        ta_score = tf.matmul(target_sent_embed, source_sent_embed, transpose_b=True)    # [?, m, n]
-        ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), ta_score, tf.ones(tf.shape(ta_score), dtype=tf.float32) * -999)    # [?, m, n]
+        mul_score = tf.matmul(target_sent_embed, source_sent_embed, transpose_b=True)    # [?, m, n]
+
+        ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), mul_score,
+                            tf.ones(tf.shape(mul_score), dtype=tf.float32) * -999)    # [?, m, n]
         ta_soft_score = tf.nn.softmax(ta_score)     # [?, m, n]
         source_att_embed = tf.matmul(ta_soft_score, source_sent_embed)  # [?, m, 128]
 
-        at_score = tf.transpose(ta_score, perm=[0, 2, 1])   # [?, n, m]
-        at_score = tf.where(mask, at_score, tf.ones(tf.shape(at_score), dtype=tf.float32) * -999)    # [?, n, m]
+        at_score = tf.where(mask, tf.transpose(mul_score, perm=[0, 2, 1]),
+                            tf.ones(tf.shape(mul_score), dtype=tf.float32) * -999)    # [?, n, m]
         at_soft_score = tf.nn.softmax(at_score)     # [?, n, m]
         target_att_embed = tf.matmul(at_soft_score, target_sent_embed)  # [?, n, 128]
 
-        return source_sent_embed, source_att_embed, at_soft_score, target_sent_embed, target_att_embed
+        return source_sent_embed, source_att_embed, at_soft_score, target_sent_embed, target_att_embed, ta_soft_score
 
     def build_eval_graph(self):
         # get batch data
@@ -165,26 +161,12 @@ class SynAlign(Model):
         eval_source_sent.set_shape([None, self.p.max_sent_len])
         eval_target_sent.set_shape([None, self.p.max_sent_len])
 
-        source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, eval_source_sent)  # [?, n, 128]
-        target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, eval_target_sent)  # [?, m, 128]
+        _, _, st_align_score, _, _, ts_align_score =\
+            self.add_model(eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask)
 
-        # pooling
-        source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
-        target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME')
-
-        source_mask_tile = tf.tile(tf.expand_dims(eval_source_mask, 2), [1, 1, tf.shape(eval_target_mask)[1]])    # [?, n, m]
-        target_mask_tile = tf.tile(tf.expand_dims(eval_target_mask, 1), [1, tf.shape(eval_source_mask)[1], 1])    # [?, n, m]
-        mask = tf.logical_and(source_mask_tile, target_mask_tile)    # [?, n, m]
-
-        mul_score = tf.matmul(target_sent_embed, source_sent_embed, transpose_b=True)    # [?, m, n]
-
-        ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), mul_score, tf.ones(tf.shape(mul_score), dtype=tf.float32) * -999)    # [?, m, n]
-        ts_align_score = tf.nn.softmax(ta_score)     # [?, m, n]
         self.ts_align = tf.argmax(ts_align_score, 2, output_type=tf.int32) + 1
         self.ts_align = tf.where(eval_target_mask, self.ts_align, tf.zeros(tf.shape(self.ts_align), dtype=tf.int32))    # [?, m]
 
-        at_score = tf.where(mask, tf.transpose(mul_score, perm=[0, 2, 1]), tf.ones(tf.shape(mul_score), dtype=tf.float32) * -999)    # [?, n, m]
-        st_align_score = tf.nn.softmax(at_score)     # [?, n, m]
         self.st_align = tf.arg_max(st_align_score, 2, output_type=tf.int32) + 1
         self.st_align = tf.where(eval_source_mask, self.st_align, tf.zeros(tf.shape(self.st_align), dtype=tf.int32))    # [?, n]
 
@@ -192,7 +174,6 @@ class SynAlign(Model):
         self.eval_source_sent = eval_source_sent
         self.eval_target_sent = eval_target_sent
         self.st_align_score = st_align_score
-
 
     def build_train_graph(self):
         """
@@ -218,46 +199,25 @@ class SynAlign(Model):
         self.target_mask = target_mask
 
         # feed into model
-        source_sent_embed, source_att_embed, self.at_soft_score, target_sent_embed, target_att_embed =\
+        source_sent_embed, source_att_embed, self.at_soft_score, target_sent_embed, target_att_embed, self.ta_soft_score =\
             self.add_model(source_sent, target_sent, source_mask, target_mask)
 
         # shuffle the batch of sentences
-        s_sent_shift_list = []
+        s_sent_embed_shift_list = []
         s_mask_shift_list = []
         for i in range(1, self.p.num_neg + 1):
-            s_sent_shift_list.append(tf.roll(source_sent, shift=[i, 0], axis=[0, 1]))
+            s_sent_embed_shift_list.append(tf.roll(source_sent_embed, shift=[i, 0, 0], axis=[0, 1, 2]))
             s_mask_shift_list.append(tf.roll(source_mask, shift=[i, 0], axis=[0, 1]))
-        source_neg_ids = tf.stack(s_sent_shift_list, axis=1)    # [?, neg_num, max_len]
-        source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, max_len]
+        source_neg_embed = tf.stack(s_sent_embed_shift_list, axis=1)    # [?, neg_num, s_len, 128]
+        source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, s_len]
 
-        t_sent_shift_list = []
+        t_sent_embed_shift_list = []
         t_mask_shift_list = []
         for i in range(1, self.p.num_neg + 1):
-            t_sent_shift_list.append(tf.roll(target_sent, shift=[i, 0], axis=[0, 1]))
+            t_sent_embed_shift_list.append(tf.roll(target_sent_embed, shift=[i, 0, 0], axis=[0, 1, 2]))
             t_mask_shift_list.append(tf.roll(target_mask, shift=[i, 0], axis=[0, 1]))
-        target_neg_ids = tf.stack(t_sent_shift_list, axis=1)    # [?, neg_num, max_len]
-        target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, neg_num, max_len]
-
-        source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_ids)    # [?, num_neg, s_len, 128]
-        target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
-
-        # # pooling
-        # source_neg_embed = tf.reshape(source_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        # target_neg_embed = tf.reshape(target_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        # source_neg_embed = tf.layers.average_pooling1d(source_neg_embed, 3, 1, padding='SAME')
-        # target_neg_embed = tf.layers.average_pooling1d(target_neg_embed, 3, 1, padding='SAME')
-        # source_neg_embed = tf.reshape(source_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
-        # target_neg_embed = tf.reshape(target_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
-
-        # # conv1d
-        # source_neg_embed = tf.reshape(source_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        # target_neg_embed = tf.reshape(target_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        # source_neg_embed = tf.layers.conv1d(source_neg_embed, self.p.embed_dim, 3, 1, padding='SAME',
-        #                                     name='s_conv', reuse=tf.AUTO_REUSE)
-        # target_neg_embed = tf.layers.conv1d(target_neg_embed, self.p.embed_dim, 3, 1, padding='SAME',
-        #                                     name='t_conv', reuse=tf.AUTO_REUSE)
-        # source_neg_embed = tf.reshape(source_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
-        # target_neg_embed = tf.reshape(target_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
+        target_neg_embed = tf.stack(t_sent_embed_shift_list, axis=1)    # [?, neg_num, t_len, 128]
+        target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, neg_num, t_len]
 
         source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
         target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
@@ -268,10 +228,10 @@ class SynAlign(Model):
 
         # labels
         source_pos_labels = tf.expand_dims(tf.ones(tf.shape(source_sent), dtype=tf.float32), 1)    # [?, 1, s_len]
-        source_neg_labels = tf.zeros(tf.shape(source_neg_ids), dtype=tf.float32)    # [?, num_neg, s_len]
+        source_neg_labels = tf.zeros(tf.shape(source_neg_mask), dtype=tf.float32)    # [?, num_neg, s_len]
         source_labels = tf.concat([source_pos_labels, source_neg_labels], axis=1)   # [?, num_neg+1, s_len]
         target_pos_labels = tf.expand_dims(tf.ones(tf.shape(target_sent), dtype=tf.float32), 1)    # [?, 1, t_len]
-        target_neg_labels = tf.zeros(tf.shape(target_neg_ids), dtype=tf.float32)    # [?, num_neg, t_len]
+        target_neg_labels = tf.zeros(tf.shape(target_neg_mask), dtype=tf.float32)    # [?, num_neg, t_len]
         target_labels = tf.concat([target_pos_labels, target_neg_labels], axis=1)   # [?, num_neg+1, t_len]
 
         # loss
@@ -283,6 +243,7 @@ class SynAlign(Model):
         target_loss = tf.where(target_mask, target_loss, tf.zeros(tf.shape(target_loss)))   # get valid loss
 
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
+
         # loss = tf.Print(loss, [loss], message='detail of loss', summarize=1000)
         # if self.regularizer is not None:
         #     loss += tf.contrib.layers.apply_regularization(
