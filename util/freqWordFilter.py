@@ -10,8 +10,10 @@ def repalce(lst, frq_set, repalce_word):
 def main():
     input_file = sys.argv[1]
     output_file = sys.argv[1] + '.fmt'
-    s_mc = sys.argv[2]
-    t_mc = sys.argv[3]
+    input_file_2 = sys.argv[2]
+    output_file_2 = sys.argv[2] + '.fmt'
+    s_mc = sys.argv[3]
+    t_mc = sys.argv[4]
     sw_cnt = Counter()
     tw_cnt = Counter()
     for line in open(input_file):
@@ -29,6 +31,15 @@ def main():
 
     fout = open(output_file, 'w')
     for line in open(input_file):
+        line_array = line.strip().split('\t')
+        s_sent_array = repalce(line_array[0].strip().split(' '), s_freq_set, 'UNK')
+        t_sent_array = repalce(line_array[1].strip().split(' '), t_freq_set, 'UNK')
+        fout.write(' '.join(s_sent_array) + '\t' + ' '.join(t_sent_array) + '\n')
+    fout.flush()
+    fout.close()
+
+    fout = open(output_file_2, 'w')
+    for line in open(input_file_2):
         line_array = line.strip().split('\t')
         s_sent_array = repalce(line_array[0].strip().split(' '), s_freq_set, 'UNK')
         t_sent_array = repalce(line_array[1].strip().split(' '), t_freq_set, 'UNK')
