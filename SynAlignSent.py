@@ -132,19 +132,19 @@ class SynAlign(Model):
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
 
-        # conv
-        source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.embed_dim, kernel_size=5, strides=1,
-                         padding='same', name='s_conv_1', reuse=tf.AUTO_REUSE)
-        target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.embed_dim, kernel_size=5, strides=1,
-                         padding='same', name='t_conv_1', reuse=tf.AUTO_REUSE)
-        source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.embed_dim, kernel_size=3, strides=1,
-                         padding='same', name='s_conv_2', reuse=tf.AUTO_REUSE)
-        target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.embed_dim, kernel_size=3, strides=1,
-                         padding='same', name='t_conv_2', reuse=tf.AUTO_REUSE)
+        # # conv
+        # source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.embed_dim, kernel_size=5, strides=1,
+        #                  padding='same', name='s_conv_1', reuse=tf.AUTO_REUSE)
+        # target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.embed_dim, kernel_size=5, strides=1,
+        #                  padding='same', name='t_conv_1', reuse=tf.AUTO_REUSE)
+        # source_sent_embed = tf.layers.conv1d(source_sent_embed, self.p.embed_dim, kernel_size=3, strides=1,
+        #                  padding='same', name='s_conv_2', reuse=tf.AUTO_REUSE)
+        # target_sent_embed = tf.layers.conv1d(target_sent_embed, self.p.embed_dim, kernel_size=3, strides=1,
+        #                  padding='same', name='t_conv_2', reuse=tf.AUTO_REUSE)
 
-        # # pooling
-        # source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
-        # target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME')
+        # pooling
+        source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 2, 1, padding='SAME')
+        target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 2, 1, padding='SAME')
 
         source_mask_tile = tf.tile(tf.expand_dims(source_mask, 2), [1, 1, tf.shape(target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(target_mask, 1), [1, tf.shape(source_mask)[1], 1])    # [?, n, m]
