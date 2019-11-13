@@ -34,6 +34,10 @@ def main():
         line_array = line.strip().split('\t')
         s_sent_array = repalce(line_array[0].strip().split(' '), s_freq_set, 'UNK')
         t_sent_array = repalce(line_array[1].strip().split(' '), t_freq_set, 'UNK')
+        if line_array[0].strip().split(' ')[-1] not in set(['.', '?', '!']):
+            continue
+        if line_array[1].strip().split(' ')[-1] not in set(['.', '?', '!']):
+            continue
         fout.write(' '.join(s_sent_array) + '\t' + ' '.join(t_sent_array) + '\n')
     fout.flush()
     fout.close()
