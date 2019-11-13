@@ -193,7 +193,6 @@ class SynAlign(Model):
         self.eval_target_sent = eval_target_sent
         self.st_align_score = st_align_score
 
-
     def build_train_graph(self):
         """
         Computes the loss for learning embeddings
@@ -241,24 +240,6 @@ class SynAlign(Model):
         source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_ids)    # [?, num_neg, s_len, 128]
         target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_ids)    # [?, num_neg, t_len, 128]
 
-        # # pooling
-        # source_neg_embed = tf.reshape(source_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        # target_neg_embed = tf.reshape(target_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        # source_neg_embed = tf.layers.average_pooling1d(source_neg_embed, 3, 1, padding='SAME')
-        # target_neg_embed = tf.layers.average_pooling1d(target_neg_embed, 3, 1, padding='SAME')
-        # source_neg_embed = tf.reshape(source_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
-        # target_neg_embed = tf.reshape(target_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
-
-        # # conv1d
-        # source_neg_embed = tf.reshape(source_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        # target_neg_embed = tf.reshape(target_neg_embed, [-1, self.p.max_sent_len, self.p.embed_dim])
-        # source_neg_embed = tf.layers.conv1d(source_neg_embed, self.p.embed_dim, 3, 1, padding='SAME',
-        #                                     name='s_conv', reuse=tf.AUTO_REUSE)
-        # target_neg_embed = tf.layers.conv1d(target_neg_embed, self.p.embed_dim, 3, 1, padding='SAME',
-        #                                     name='t_conv', reuse=tf.AUTO_REUSE)
-        # source_neg_embed = tf.reshape(source_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
-        # target_neg_embed = tf.reshape(target_neg_embed, [self.p.batch_size, self.p.num_neg, self.p.max_sent_len, self.p.embed_dim])
-
         source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
         target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
 
@@ -276,13 +257,38 @@ class SynAlign(Model):
 
         # loss
         source_loss = tf.nn.weighted_cross_entropy_with_logits(targets=source_labels, logits=source_logits, pos_weight=1.0, name='source_loss')   # [?, num_neg+1, s_len]
-        source_mask = tf.concat([tf.expand_dims(source_mask, axis=1), source_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
-        source_loss = tf.where(source_mask, source_loss, tf.zeros(tf.shape(source_loss)))   # get valid loss
+        source_all_mask = tf.concat([tf.expand_dims(source_mask, axis=1), source_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
+        source_loss = tf.where(source_all_mask, source_loss, tf.zeros(tf.shape(source_loss)))   # get valid loss
         target_loss = tf.nn.weighted_cross_entropy_with_logits(targets=target_labels, logits=target_logits, pos_weight=1.0, name='target_loss')   # [?, num_neg+1, t_len]
-        target_mask = tf.concat([tf.expand_dims(target_mask, axis=1), target_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
-        target_loss = tf.where(target_mask, target_loss, tf.zeros(tf.shape(target_loss)))   # get valid loss
+        target_all_mask = tf.concat([tf.expand_dims(target_mask, axis=1), target_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
+        target_loss = tf.where(target_all_mask, target_loss, tf.zeros(tf.shape(target_loss)))   # get valid loss
 
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
+
+        # alignment loss
+        source_align_neg_embed = source_neg_embed   # [?, num_neg, s_len, 128]
+        source_align_neg_mask = source_neg_mask     # [?, num_neg, s_len]
+        target_align_neg_embed = tf.roll(target_neg_embed, shift=[0, 1, 0, 0], axis=[0, 1, 2, 3])   # [?, num_neg, t_len, 128]
+        target_align_neg_mask = tf.roll(target_neg_mask, shift=[0, 1, 0], axis=[0, 1, 2])     # [?, num_neg, t_len]
+
+        source_neg_reduce_mean = self.sent_pooling(source_align_neg_embed, source_align_neg_mask)   # [?, num_neg, 128]
+        target_neg_reduce_mean = self.sent_pooling(target_align_neg_embed, target_align_neg_mask)   # [?, num_neg, 128]
+
+        source_align_pos_embed = tf.expand_dims(tf.nn.embedding_lookup(self.source_emb_table, source_sent), 1)     # [?, 1, s_len, 128]
+        source_align_pos_mask = tf.expand_dims(source_mask, 1)     # [?, 1, s_len]
+        target_align_pos_embed = tf.expand_dims(tf.nn.embedding_lookup(self.target_emb_table, target_sent), 1)     # [?, 1, t_len, 128]
+        target_align_pos_mask = tf.expand_dims(target_mask, 1)     # [?, 1, s_len]
+        source_pos_reduce_mean = self.sent_pooling(source_align_pos_embed, source_align_pos_mask)     # [?, 1, 128]
+        target_pos_reduce_mean = self.sent_pooling(target_align_pos_embed, target_align_pos_mask)     # [?, 1, 128]
+        source_align_embed = tf.concat([source_pos_reduce_mean, source_neg_reduce_mean], 1)     # [?, num_neg+1, 128]
+        target_align_embed = tf.concat([target_pos_reduce_mean, target_neg_reduce_mean], 1)     # [?, num_neg+1, 128]
+        align_logit = tf.reduce_sum(tf.multiply(source_align_embed, target_align_embed), 2)      # [?, num_neg+1]
+        align_pos_label = tf.ones([self.p.batch_size, 1], dtype=tf.float32)
+        align_neg_lable = tf.zeros([self.p.batch_size, self.p.num_neg], dtype=tf.float32)
+        align_lable = tf.concat([align_pos_label, align_neg_lable], 1)  # [?, num_neg+1]
+        align_loss = tf.nn.weighted_cross_entropy_with_logits(targets=align_lable, logits=align_logit, pos_weight=1.0, name='align_loss')   # [?, num_neg+1]
+        align_loss = tf.reduce_mean(tf.reduce_sum(align_loss, 1))
+
         # loss = tf.Print(loss, [loss], message='detail of loss', summarize=1000)
         # if self.regularizer is not None:
         #     loss += tf.contrib.layers.apply_regularization(
@@ -290,6 +296,8 @@ class SynAlign(Model):
         #             tf.GraphKeys.REGULARIZATION_LOSSES))
 
         self.loss = loss
+        self.align_loss = align_loss
+        self.all_loss = self.loss + self.align_loss
 
         return
 
@@ -344,6 +352,11 @@ class SynAlign(Model):
         f_t.flush()
         f_t.close()
         self.logger.info("Embedding saving done ! ")
+
+    def sent_pooling(self, sent_emb, sent_mask):
+        sent_reduce_mean = tf.where(tf.tile(tf.expand_dims(sent_mask, 3), [1, 1, 1, self.p.embed_dim]), sent_emb, tf.zeros(tf.shape(sent_emb), dtype=tf.float32))
+        sent_reduce_mean = tf.reduce_sum(sent_reduce_mean, axis=2) / tf.tile(tf.expand_dims(tf.reduce_sum(tf.cast(sent_mask, tf.float32), axis=2), 2), [1, 1, self.p.embed_dim])  # [?, num_neg, 128]
+        return sent_reduce_mean
 
     def get_alignment(self, epoch, sess):
 
@@ -560,7 +573,9 @@ class SynAlign(Model):
         -------
         loss:		Loss over the corpus
         """
+        all_losses = []
         losses = []
+        align_losses = []
         cnt = 0
         step = 0
         st = time.time()
@@ -574,24 +589,31 @@ class SynAlign(Model):
         while 1:
             step = step + 1
             # loss, _ = sess.run([self.loss, self.train_op])
-            try:
-                loss, _, source_mask, target_sent, target_mask, at_soft_score =\
-                    sess.run([self.loss, self.train_op,  self.source_mask,
-                              self.target_sent, self.target_mask, self.at_soft_score])
-            except:
-                break
+            all_loss, loss, align_loss, _, source_mask, target_sent, target_mask, at_soft_score = \
+                sess.run([self.all_loss, self.loss, self.align_loss, self.train_op, self.source_mask,
+                          self.target_sent, self.target_mask, self.at_soft_score])
+            # try:
+            #     all_loss, loss, align_loss, _, source_mask, target_sent, target_mask, at_soft_score =\
+            #         sess.run([self.all_loss, self.loss, self.align_loss, self.train_op,  self.source_mask,
+            #                   self.target_sent, self.target_mask, self.at_soft_score])
+            # except:
+            #     break
+            all_losses.append(all_loss)
             losses.append(loss)
+            align_losses.append(align_loss)
             self.get_exp_and_div(target_sent, source_mask, target_mask, at_soft_score)
 
             cnt += self.p.batch_size
             if step % 10 == 0:
                 self.logger.info(
-                    'E:{} (Sents: {}/{} [{}]): Train Loss \t{:.5}\t{}\t{:.5}'.format(
+                    'E:{} (Sents: {}/{} [{}]): Train Loss \t{:.5}\t{:.5}\t{:.5}\t{}\t{:.5}'.format(
                         epoch,
                         cnt,
                         10000,
                         round(cnt / 10000 * 100, 1),
+                        np.mean(all_losses),
                         np.mean(losses),
+                        np.mean(align_losses),
                         self.p.name,
                         self.best_int_avg))
             en = time.time()
