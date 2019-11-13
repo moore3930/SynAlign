@@ -589,15 +589,12 @@ class SynAlign(Model):
         while 1:
             step = step + 1
             # loss, _ = sess.run([self.loss, self.train_op])
-            all_loss, loss, align_loss, _, source_mask, target_sent, target_mask, at_soft_score = \
-                sess.run([self.all_loss, self.loss, self.align_loss, self.train_op, self.source_mask,
-                          self.target_sent, self.target_mask, self.at_soft_score])
-            # try:
-            #     all_loss, loss, align_loss, _, source_mask, target_sent, target_mask, at_soft_score =\
-            #         sess.run([self.all_loss, self.loss, self.align_loss, self.train_op,  self.source_mask,
-            #                   self.target_sent, self.target_mask, self.at_soft_score])
-            # except:
-            #     break
+            try:
+                all_loss, loss, align_loss, _, source_mask, target_sent, target_mask, at_soft_score =\
+                    sess.run([self.all_loss, self.loss, self.align_loss, self.train_op,  self.source_mask,
+                              self.target_sent, self.target_mask, self.at_soft_score])
+            except:
+                break
             all_losses.append(all_loss)
             losses.append(loss)
             align_losses.append(align_loss)
