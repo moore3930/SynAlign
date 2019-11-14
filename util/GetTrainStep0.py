@@ -8,7 +8,11 @@ def main():
         line_array = line.strip().split('\t')
         if line_array[0].strip().split(' ')[-1] not in set(['.', '?', '!']):
             continue
+        if len(line_array[0].strip().split(' ')) > 50:
+            continue
         if line_array[1].strip().split(' ')[-1] not in set(['.', '?', '!']):
+            continue
+        if len(line_array[1].strip().split(' ')) > 50:
             continue
         fout.write(line_array[0] + '\t' + line_array[1] + '\n')
     fout.flush()
