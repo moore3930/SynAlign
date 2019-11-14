@@ -16,7 +16,7 @@ def main():
         sent_set_2.add(line.strip())
     print(len(sent_set_2))
     for line in open(input_file_3):
-        line_array = line.strip().strip('\t')
+        line_array = line.strip().split('\t')
         if line_array[0] in sent_set_1 and line_array[1] in sent_set_2:
             fout1.write(line_array[0] + '\n')
             fout2.write(line_array[1] + '\n')
