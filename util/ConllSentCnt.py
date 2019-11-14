@@ -26,11 +26,10 @@ def main():
         cnt += 1
         s_array = s.strip().split(' ')
         t_array = t.strip().split(' ')
-        if abs(len(s_array) - len(t_array)) > 5:
+        if abs(len(s_array) - len(t_array)) != 0:
             print(s)
             print(t)
             print(cnt)
-            break
 
 if __name__ == '__main__':
     main()
