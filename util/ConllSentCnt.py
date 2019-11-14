@@ -30,6 +30,7 @@ def main():
             print(s)
             print(t)
             print(cnt)
+            break
 
 if __name__ == '__main__':
     main()

@@ -21,7 +21,7 @@ class SynAlign(Model):
 
         lines = io.open(self.path_to_file, encoding='UTF-8').read().strip().split('\n')
         word_pairs = [[preprocess_sentence(w) for w in l.split('\t')] for l in lines]
-        inp_text, target_text = zip(*word_pairs)
+        inp_text, _, target_text, _ = zip(*word_pairs)
         self.source_tokenizer.fit_on_texts(inp_text)
         self.target_tokenizer.fit_on_texts(target_text)
 
@@ -50,7 +50,7 @@ class SynAlign(Model):
         # line = line.strip().lower()
         line = [l.strip().lower().split(b'\t') for l in lines]
         try:
-            source_text, target_text = zip(*line)
+            source_text, _, target_text, _ = zip(*line)
         except:
             print(lines)
 
@@ -619,7 +619,7 @@ class SynAlign(Model):
     def __init__(self, params):
 
         # data file
-        self.path_to_file = "./data/en-fr-sample.txt"
+        self.path_to_file = "./data/temp/en-sample-UNK.conll.out"
         self.eval_path_to_file = "./data/en-fr-eval.txt"
 
         # create tokenizer
@@ -694,7 +694,7 @@ if __name__ == "__main__":
 
     # Added these two arguments to enable others to personalize the training set. Otherwise, the programme may suffer from memory overflow easily.
     # It is suggested that the -maxlen be set no larger than 100.
-    parser.add_argument('-maxsentlen', dest="max_sent_len", default=80, type=int,
+    parser.add_argument('-maxsentlen', dest="max_sent_len", default=50, type=int,
                         help='Max length of the sentences in data.txt (default: 40)')
     parser.add_argument('-maxdeplen', dest="max_dep_len", default=800, type=int,
                         help='Max length of the dependency relations in data.txt (default: 800)')
