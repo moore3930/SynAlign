@@ -206,8 +206,8 @@ class SynAlign(Model):
         s_sent_shift_list = []
         s_mask_shift_list = []
         for i in range(1, self.p.num_neg + 1):
-            s_sent_shift_list.append(tf.roll(source_sent, shift=[i, 0], axis=[0, 1]))
-            s_mask_shift_list.append(tf.roll(source_mask, shift=[i, 0], axis=[0, 1]))
+            s_sent_shift_list.append(tf.roll(source_sent, shift=[0, i], axis=[0, 1]))
+            s_mask_shift_list.append(tf.roll(source_mask, shift=[0, i], axis=[0, 1]))
         source_neg_sent = tf.stack(s_sent_shift_list, axis=1)    # [?, neg_num, s_len]
         source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, s_len]
         source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_sent)
@@ -215,8 +215,8 @@ class SynAlign(Model):
         t_sent_shift_list = []
         t_mask_shift_list = []
         for i in range(1, self.p.num_neg + 1):
-            t_sent_shift_list.append(tf.roll(target_sent, shift=[i, 0], axis=[0, 1]))
-            t_mask_shift_list.append(tf.roll(target_mask, shift=[i, 0], axis=[0, 1]))
+            t_sent_shift_list.append(tf.roll(target_sent, shift=[0, i], axis=[0, 1]))
+            t_mask_shift_list.append(tf.roll(target_mask, shift=[0, i], axis=[0, 1]))
         target_neg_sent = tf.stack(t_sent_shift_list, axis=1)    # [?, neg_num, t_len]
         target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, neg_num, t_len]
         target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_sent)
