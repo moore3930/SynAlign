@@ -4,6 +4,7 @@ from helper import *
 from sklearn.model_selection import train_test_split
 from web.embedding import Embedding
 from web.evaluate import evaluate_on_all
+from nn.directed_gcn import DirectedGCN
 
 import tensorflow as tf
 import numpy as np
@@ -50,10 +51,59 @@ class SynAlign(Model):
         # line = line.strip().lower()
         line = [l.strip().lower().split(b'\t') for l in lines]
         try:
-            source_text, _, target_text, _ = zip(*line)
+            source_text, source_dep, target_text, target_dep = zip(*line)
         except:
             print(lines)
 
+        # process dependency
+        source_dep = [line.decode('utf-8').split(' ') for line in source_dep]
+        target_dep = [line.decode('utf-8').split(' ') for line in target_dep]
+        batch_size = len(source_dep)
+        max_len = self.p.max_sent_len
+
+        s_adj_indices = []
+        s_adj_values = []
+        s_adj_shape = [batch_size * max_len, batch_size * max_len]
+        s_label_indices = []
+        s_label_values = []
+        s_label_shape = [batch_size * max_len, batch_size * max_len]
+        indices_shift = 0
+
+        for dep_lst in source_dep:
+            for i in range(2, len(dep_lst)):
+                dep = dep_lst[i]
+                dep_array = dep.split('|')
+                h = int(dep_array[1]) + indices_shift
+                d = int(dep_array[0]) + indices_shift
+                r = int(dep_array[2])
+                s_adj_indices.append([h, d])
+                s_adj_values.append(np.float32(1.0))
+                s_label_indices.append([h, d])
+                s_label_values.append(r)
+            indices_shift += max_len
+
+        t_adj_indices = []
+        t_adj_values = []
+        t_adj_shape = [batch_size * max_len, batch_size * max_len]
+        t_label_indices = []
+        t_label_values = []
+        t_label_shape = [batch_size * max_len, batch_size * max_len]
+        indices_shift = 0
+
+        for dep_lst in target_dep:
+            for i in range(2, len(dep_lst)):
+                dep = dep_lst[i]
+                dep_array = dep.split('|')
+                h = int(dep_array[1]) + indices_shift
+                d = int(dep_array[0]) + indices_shift
+                r = int(dep_array[2])
+                t_adj_indices.append([h, d])
+                t_adj_values.append(np.float32(1.0))
+                t_label_indices.append([h, d])
+                t_label_values.append(r)
+            indices_shift += max_len
+
+        # process sentence
         source_text = [line.decode('utf-8') for line in source_text]
         target_text = [line.decode('utf-8') for line in target_text]
         source_text = [preprocess_sentence(line) for line in source_text]
@@ -75,7 +125,11 @@ class SynAlign(Model):
         source_mask = source_ids > 0
         target_mask = target_ids > 0
 
-        return source_ids, target_ids, source_mask, target_mask
+        return source_ids, target_ids, source_mask, target_mask,\
+               s_adj_indices, s_adj_values, s_adj_shape,\
+               s_label_indices, s_label_values, s_label_shape,\
+               t_adj_indices, t_adj_values, t_adj_shape,\
+               t_label_indices, t_label_values, t_label_shape
 
     def get_batch(self, path, batch_size, is_train=False):
         dataset = tf.data.TextLineDataset([path])
@@ -84,9 +138,22 @@ class SynAlign(Model):
         dataset = dataset.batch(batch_size)
         iter = dataset.make_initializable_iterator()
         batch = iter.get_next()
-        source_sent, target_sent, source_mask, target_mask = \
-            tf.py_func(self.batch_process, [batch, self.p.max_sent_len], [tf.int32, tf.int32, tf.bool, tf.bool])
-        return source_sent, target_sent, source_mask, target_mask, iter
+        source_sent, target_sent, source_mask, target_mask,\
+        s_adj_indices, s_adj_values, s_adj_shape,\
+        s_label_indices, s_label_values, s_label_shape, \
+        t_adj_indices, t_adj_values, t_adj_shape, \
+        t_label_indices, t_label_values, t_label_shape = tf.py_func(self.batch_process,
+                                                              [batch, self.p.max_sent_len],
+                                                              [tf.int32, tf.int32, tf.bool, tf.bool,
+                                                               tf.int64, tf.float32, tf.int64,
+                                                               tf.int64, tf.int64, tf.int64,
+                                                               tf.int64, tf.float32, tf.int64,
+                                                               tf.int64, tf.int64, tf.int64])
+        return source_sent, target_sent, source_mask, target_mask,\
+               s_adj_indices, s_adj_values, s_adj_shape,\
+               s_label_indices, s_label_values, s_label_shape, \
+               t_adj_indices, t_adj_values, t_adj_shape, \
+               t_label_indices, t_label_values, t_label_shape, iter
 
     def init_embedding(self):
         # when target embeddings for initialization is assigned
@@ -117,7 +184,9 @@ class SynAlign(Model):
                                                initializer=tf.contrib.layers.xavier_initializer())
             print("Embedding init done !")
 
-    def add_model(self, source_sent, target_sent, source_mask, target_mask):
+    def add_model(self, source_sent, target_sent, source_mask, target_mask,
+                  s_adj, s_labels, s_adj_inv, s_labels_inv,
+                  t_adj, t_labels, t_adj_inv, t_labels_inv):
         """
         Creates the Computational Graph
 
@@ -131,6 +200,12 @@ class SynAlign(Model):
 
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
+
+        # gcn layer
+        train_mode = tf.constant(self.p.train_mode, dtype=tf.bool)
+        gcn_layer = DirectedGCN(self.p.embed_dim, 100, train_mode=train_mode)
+        source_sent_embed = gcn_layer(source_sent_embed, s_adj, s_labels, s_adj_inv, s_labels_inv)
+        target_sent_embed = gcn_layer(target_sent_embed, t_adj, t_labels, t_adj_inv, t_labels_inv)
 
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
@@ -189,8 +264,14 @@ class SynAlign(Model):
         """
 
         # get batch data
-        source_sent, target_sent, source_mask, target_mask, self.train_iter =\
-            self.get_batch(self.path_to_file, self.p.batch_size, is_train=True)
+        source_sent, target_sent, source_mask, target_mask,\
+        s_adj_indices, s_adj_values, s_adj_shape,\
+        s_label_indices, s_label_values, s_label_shape, \
+        t_adj_indices, t_adj_values, t_adj_shape, \
+        t_label_indices, t_label_values, t_label_shape,\
+        self.train_iter = self.get_batch(self.path_to_file, self.p.batch_size, is_train=True)
+
+        # sentence & mask
         source_sent.set_shape([None, self.p.max_sent_len])
         target_sent.set_shape([None, self.p.max_sent_len])
         self.source_sent = source_sent
@@ -198,9 +279,20 @@ class SynAlign(Model):
         self.target_sent = target_sent
         self.target_mask = target_mask
 
+        # dependency
+        s_adj = tf.SparseTensor(s_adj_indices, s_adj_values, s_adj_shape)  # [? * max_len, ? * max_len]
+        s_labels = tf.SparseTensor(s_label_indices, s_label_values, s_label_shape)
+        s_adj_inv = tf.sparse.transpose(s_adj)
+        s_labels_inv = tf.sparse.transpose(s_labels)
+
+        t_adj = tf.SparseTensor(t_adj_indices, t_adj_values, t_adj_shape)  # [? * max_len, ? * max_len]
+        t_labels = tf.SparseTensor(t_label_indices, t_label_values, t_label_shape)
+        t_adj_inv = tf.sparse.transpose(t_adj)
+        t_labels_inv = tf.sparse.transpose(t_labels)
+
         # feed into model
         source_sent_embed, source_att_embed, self.at_soft_score, target_sent_embed, target_att_embed, self.ta_soft_score =\
-            self.add_model(source_sent, target_sent, source_mask, target_mask)
+            self.add_model(source_sent, target_sent, source_mask, target_mask, s_adj, s_labels, s_adj_inv, s_labels_inv, t_adj, t_labels, t_adj_inv, t_labels_inv)
 
         # shuffle the batch of sentences
         s_sent_shift_list = []
@@ -553,7 +645,11 @@ class SynAlign(Model):
 
         while 1:
             step = step + 1
-            # loss, _ = sess.run([self.loss, self.train_op])
+
+            # loss, _, source_mask, target_sent, target_mask, at_soft_score = \
+            #     sess.run([self.loss, self.train_op, self.source_mask,
+            #               self.target_sent, self.target_mask, self.at_soft_score])
+
             try:
                 loss, _, source_mask, target_sent, target_mask, at_soft_score =\
                     sess.run([self.loss, self.train_op,  self.source_mask,
@@ -648,7 +744,7 @@ class SynAlign(Model):
                 scale=self.p.l2)
 
         self.init_embedding()
-        self.build_eval_graph()
+        # self.build_eval_graph()
         self.build_train_graph()
 
         if self.p.opt == 'adam':
@@ -669,6 +765,7 @@ if __name__ == "__main__":
     parser.add_argument('-embed_dim', dest="embed_dim", default=128, type=int, help='Embedding Dimension')
     parser.add_argument('-total', dest="total_sents", default=56974869, type=int,
                         help='Total number of sentences in file')
+    parser.add_argument('-train_mode', dest="train_mode", default=True, type=bool, help='train or not')
     parser.add_argument('-lr', dest="lr", default=0.001, type=float, help='Learning rate')
     parser.add_argument('-batch', dest="batch_size", default=64, type=int, help='Batch size')
     parser.add_argument('-epoch', dest="max_epochs", default=50, type=int, help='Max epochs')
@@ -696,8 +793,6 @@ if __name__ == "__main__":
     # It is suggested that the -maxlen be set no larger than 100.
     parser.add_argument('-maxsentlen', dest="max_sent_len", default=50, type=int,
                         help='Max length of the sentences in data.txt (default: 40)')
-    parser.add_argument('-maxdeplen', dest="max_dep_len", default=800, type=int,
-                        help='Max length of the dependency relations in data.txt (default: 800)')
 
     args = parser.parse_args()
 
