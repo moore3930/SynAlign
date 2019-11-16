@@ -763,8 +763,8 @@ class SynAlign(Model):
                 scale=self.p.l2)
 
         self.init_embedding()
-        self.s_gcn_layer = DirectedGCN(self.p.embed_dim, 100)
-        self.t_gcn_layer = DirectedGCN(self.p.embed_dim, 100)
+        self.s_gcn_layer = DirectedGCN(self.p.embed_dim, 100, name='source')
+        self.t_gcn_layer = DirectedGCN(self.p.embed_dim, 100, name='target')
 
         self.build_eval_graph()
         self.build_train_graph()
