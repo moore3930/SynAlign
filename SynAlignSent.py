@@ -765,7 +765,7 @@ class SynAlign(Model):
         self.init_embedding()
         self.gcn_layer = DirectedGCN(self.p.embed_dim, 100)
 
-        # self.build_eval_graph()
+        self.build_eval_graph()
         self.build_train_graph()
 
         if self.p.opt == 'adam':
