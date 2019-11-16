@@ -236,7 +236,7 @@ class SynAlign(Model):
         s_label_indices, s_label_values, s_label_shape, \
         t_adj_indices, t_adj_values, t_adj_shape, \
         t_label_indices, t_label_values, t_label_shape,\
-        self.eval_iter = self.get_batch(self.eval_path_to_file, self.p.batch_size, is_train=True)
+        self.eval_iter = self.get_batch(self.eval_path_to_file, self.p.batch_size, is_train=False)
 
         # dependency
         s_adj = tf.SparseTensor(s_adj_indices, s_adj_values, s_adj_shape)  # [? * max_len, ? * max_len]
