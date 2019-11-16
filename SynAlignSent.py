@@ -735,7 +735,7 @@ class SynAlign(Model):
 
         # data file
         self.path_to_file = "./data/temp/en-fr-sample.conll"
-        self.eval_path_to_file = "./data/en-fr-eval.conll"
+        self.eval_path_to_file = "./data/temp/en-fr-eval.conll"
 
         # create tokenizer
         self.create_tokenizer()
