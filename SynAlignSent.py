@@ -186,7 +186,7 @@ class SynAlign(Model):
 
     def add_model(self, source_sent, target_sent, source_mask, target_mask,
                   s_adj, s_labels, s_adj_inv, s_labels_inv,
-                  t_adj, t_labels, t_adj_inv, t_labels_inv):
+                  t_adj, t_labels, t_adj_inv, t_labels_inv, train_mode):
         """
         Creates the Computational Graph
 
@@ -202,10 +202,9 @@ class SynAlign(Model):
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
 
         # gcn layer
-        train_mode = tf.constant(self.p.train_mode, dtype=tf.bool)
-        gcn_layer = DirectedGCN(self.p.embed_dim, 100, train_mode=train_mode)
-        source_sent_embed = gcn_layer(source_sent_embed, s_adj, s_labels, s_adj_inv, s_labels_inv)
-        target_sent_embed = gcn_layer(target_sent_embed, t_adj, t_labels, t_adj_inv, t_labels_inv)
+        train_mode = tf.constant(train_mode, dtype=tf.bool)
+        source_sent_embed = self.gcn_layer(source_sent_embed, s_adj, s_labels, s_adj_inv, s_labels_inv, train_mode)
+        target_sent_embed = self.gcn_layer(target_sent_embed, t_adj, t_labels, t_adj_inv, t_labels_inv, train_mode)
 
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
@@ -230,14 +229,34 @@ class SynAlign(Model):
         return source_sent_embed, source_att_embed, at_soft_score, target_sent_embed, target_att_embed, ta_soft_score
 
     def build_eval_graph(self):
+
         # get batch data
-        eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask, self.eval_iter =\
-            self.get_batch(self.eval_path_to_file, self.p.batch_size)
+        eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask,\
+        s_adj_indices, s_adj_values, s_adj_shape,\
+        s_label_indices, s_label_values, s_label_shape, \
+        t_adj_indices, t_adj_values, t_adj_shape, \
+        t_label_indices, t_label_values, t_label_shape,\
+        self.train_iter = self.get_batch(self.path_to_file, self.p.batch_size, is_train=True)
+
+        # dependency
+        s_adj = tf.SparseTensor(s_adj_indices, s_adj_values, s_adj_shape)  # [? * max_len, ? * max_len]
+        s_labels = tf.SparseTensor(s_label_indices, s_label_values, s_label_shape)
+        s_adj_inv = tf.sparse.transpose(s_adj)
+        s_labels_inv = tf.sparse.transpose(s_labels)
+
+        t_adj = tf.SparseTensor(t_adj_indices, t_adj_values, t_adj_shape)  # [? * max_len, ? * max_len]
+        t_labels = tf.SparseTensor(t_label_indices, t_label_values, t_label_shape)
+        t_adj_inv = tf.sparse.transpose(t_adj)
+        t_labels_inv = tf.sparse.transpose(t_labels)
+
         eval_source_sent.set_shape([None, self.p.max_sent_len])
         eval_target_sent.set_shape([None, self.p.max_sent_len])
 
-        _, _, st_align_score, _, _, ts_align_score =\
-            self.add_model(eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask)
+        # feed into model
+        source_sent_embed, source_att_embed, st_align_score, target_sent_embed, target_att_embed, ts_align_score =\
+            self.add_model(eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask,
+                           s_adj, s_labels, s_adj_inv, s_labels_inv,
+                           t_adj, t_labels, t_adj_inv, t_labels_inv, train_mode=False)
 
         self.ts_align = tf.argmax(ts_align_score, 2, output_type=tf.int32) + 1
         self.ts_align = tf.where(eval_target_mask, self.ts_align, tf.zeros(tf.shape(self.ts_align), dtype=tf.int32))    # [?, m]
@@ -292,7 +311,7 @@ class SynAlign(Model):
 
         # feed into model
         source_sent_embed, source_att_embed, self.at_soft_score, target_sent_embed, target_att_embed, self.ta_soft_score =\
-            self.add_model(source_sent, target_sent, source_mask, target_mask, s_adj, s_labels, s_adj_inv, s_labels_inv, t_adj, t_labels, t_adj_inv, t_labels_inv)
+            self.add_model(source_sent, target_sent, source_mask, target_mask, s_adj, s_labels, s_adj_inv, s_labels_inv, t_adj, t_labels, t_adj_inv, t_labels_inv, train_mode=True)
 
         # shuffle the batch of sentences
         s_sent_shift_list = []
@@ -715,8 +734,8 @@ class SynAlign(Model):
     def __init__(self, params):
 
         # data file
-        self.path_to_file = "./data/temp/en-sample-UNK.conll.out"
-        self.eval_path_to_file = "./data/en-fr-eval.txt"
+        self.path_to_file = "./data/temp/en-fr-sample.conll"
+        self.eval_path_to_file = "./data/en-fr-eval.conll"
 
         # create tokenizer
         self.create_tokenizer()
@@ -744,6 +763,8 @@ class SynAlign(Model):
                 scale=self.p.l2)
 
         self.init_embedding()
+        self.gcn_layer = DirectedGCN(self.p.embed_dim, 100)
+
         # self.build_eval_graph()
         self.build_train_graph()
 

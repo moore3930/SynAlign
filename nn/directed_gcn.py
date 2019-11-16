@@ -16,7 +16,7 @@ class DirectedGCN:
     A directed GCN layer.
     """
 
-    def __init__(self, layer_size: int, num_labels: int, train_mode,
+    def __init__(self, layer_size: int, num_labels: int,
                  dropout_keep_p: float = 0.8,
                  edge_dropout_keep_p: float = 0.8,
                  residual: Optional[bool] = False,
@@ -24,7 +24,6 @@ class DirectedGCN:
 
         self.layer_size = layer_size
         self.num_labels = num_labels
-        self.train_mode = train_mode
 
         self.dropout_keep_p = dropout_keep_p
         self.edge_dropout_keep_p = edge_dropout_keep_p
@@ -34,7 +33,7 @@ class DirectedGCN:
         with tf.variable_scope(name):
             self._create_weight_matrices()
 
-    def __call__(self, inputs, adj, labels, adj_inv, labels_inv):
+    def __call__(self, inputs, adj, labels, adj_inv, labels_inv, train_mode):
 
         state_dim = tf.shape(inputs)[2]
         inputs2d = tf.reshape(inputs, [-1, state_dim])
@@ -44,7 +43,7 @@ class DirectedGCN:
 
         # apply sparse dropout
         to_retain = sparse_dropout_mask(
-            adj, self.edge_dropout_keep_p, self.train_mode)
+            adj, self.edge_dropout_keep_p, train_mode)
         adj = tf.sparse_retain(adj, to_retain)
         labels = tf.sparse_retain(labels, to_retain)
 
@@ -57,7 +56,7 @@ class DirectedGCN:
         values = tf.nn.sigmoid(adj.values + gates_bias)
 
         # dropout scaling
-        values /= tf.where(self.train_mode, self.edge_dropout_keep_p, 1.0)
+        values /= tf.where(train_mode, self.edge_dropout_keep_p, 1.0)
 
         adj = tf.SparseTensor(indices=adj.indices, values=values,
                               dense_shape=adj.dense_shape)
@@ -77,7 +76,7 @@ class DirectedGCN:
 
         # apply sparse dropout
         to_retain_inv = sparse_dropout_mask(
-            adj_inv, self.edge_dropout_keep_p, self.train_mode)
+            adj_inv, self.edge_dropout_keep_p, train_mode)
         adj_inv = tf.sparse_retain(adj_inv, to_retain_inv)
         labels_inv = tf.sparse_retain(labels_inv, to_retain_inv)
 
@@ -90,7 +89,7 @@ class DirectedGCN:
         values_inv = tf.nn.sigmoid(adj_inv.values + gates_inv_bias)
 
         # dropout scaling
-        values_inv /= tf.where(self.train_mode, self.edge_dropout_keep_p, 1.0)
+        values_inv /= tf.where(train_mode, self.edge_dropout_keep_p, 1.0)
 
         adj_inv = tf.SparseTensor(indices=adj_inv.indices,
                                   values=values_inv,
