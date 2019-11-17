@@ -23,7 +23,7 @@ class SynAlign(Model):
 
         lines = io.open(self.path_to_file, encoding='UTF-8').read().strip().split('\n')
         word_pairs = [[preprocess_sentence(w) for w in l.split('\t')] for l in lines]
-        inp_text, _, target_text, _ = zip(*word_pairs)
+        inp_text, _, _, target_text, _, _ = zip(*word_pairs)
         self.source_tokenizer.fit_on_texts(inp_text)
         self.target_tokenizer.fit_on_texts(target_text)
 
@@ -54,9 +54,19 @@ class SynAlign(Model):
         # line = line.strip().lower()
         line = [l.strip().lower().split(b'\t') for l in lines]
         try:
-            source_text, source_dep, target_text, target_dep = zip(*line)
+            source_text, source_pos, source_dep, target_text, target_pos, target_dep = zip(*line)
         except:
             print(lines)
+
+        # process pos
+        source_pos = [line.decode('utf-8').split(' ') for line in source_pos]
+        source_pos = [list(map(int, i)) for i in source_pos]
+        source_pos = tf.keras.preprocessing.sequence.pad_sequences(source_pos, maxlen=max_len,
+                                                                   padding='post', truncating='post')
+        target_pos = [line.decode('utf-8').split(' ') for line in target_pos]
+        target_pos = [list(map(int, i)) for i in target_pos]
+        target_pos = tf.keras.preprocessing.sequence.pad_sequences(target_pos, maxlen=max_len,
+                                                                   padding='post', truncating='post')
 
         # process dependency
         source_dep = [line.decode('utf-8').split(' ') for line in source_dep]
@@ -129,6 +139,7 @@ class SynAlign(Model):
         target_mask = target_ids > 0
 
         return source_ids, target_ids, source_mask, target_mask,\
+               source_pos, target_pos,\
                s_adj_indices, s_adj_values, s_adj_shape,\
                s_label_indices, s_label_values, s_label_shape,\
                t_adj_indices, t_adj_values, t_adj_shape,\
@@ -142,23 +153,31 @@ class SynAlign(Model):
         iter = dataset.make_initializable_iterator()
         batch = iter.get_next()
         source_sent, target_sent, source_mask, target_mask,\
+        source_pos, target_pos,\
         s_adj_indices, s_adj_values, s_adj_shape,\
         s_label_indices, s_label_values, s_label_shape, \
         t_adj_indices, t_adj_values, t_adj_shape, \
         t_label_indices, t_label_values, t_label_shape = tf.py_func(self.batch_process,
                                                               [batch, self.p.max_sent_len],
                                                               [tf.int32, tf.int32, tf.bool, tf.bool,
+                                                               tf.int32, tf.int32,
                                                                tf.int64, tf.float32, tf.int64,
                                                                tf.int64, tf.int64, tf.int64,
                                                                tf.int64, tf.float32, tf.int64,
                                                                tf.int64, tf.int64, tf.int64])
         return source_sent, target_sent, source_mask, target_mask,\
+               source_pos, target_pos,\
                s_adj_indices, s_adj_values, s_adj_shape,\
                s_label_indices, s_label_values, s_label_shape, \
                t_adj_indices, t_adj_values, t_adj_shape, \
                t_label_indices, t_label_values, t_label_shape, iter
 
     def init_embedding(self):
+        # Init semantic embedding
+        self.sem_embed_table = tf.get_variable(name='semantic_emb', shape=[100, self.p.embed_dim],
+                                               initializer=tf.contrib.layers.xavier_initializer())
+        print("Semantic embedding init done !")
+
         # when target embeddings for initialization is assigned
         if self.p.embed_loc:
             print("Start loading embeddings ... ")
@@ -188,6 +207,7 @@ class SynAlign(Model):
             print("Embedding init done !")
 
     def add_model(self, source_sent, target_sent, source_mask, target_mask,
+                  source_pos, target_pos,
                   s_adj, s_labels, s_adj_inv, s_labels_inv,
                   t_adj, t_labels, t_adj_inv, t_labels_inv, train_mode):
         """
@@ -203,6 +223,12 @@ class SynAlign(Model):
 
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
+
+        # add semantic embedding
+        source_sem_embed = tf.nn.embedding_lookup(self.sem_embed_table, source_pos)     # [?, n, 128]
+        target_sem_embed = tf.nn.embedding_lookup(self.sem_embed_table, target_pos)     # [?, m, 128]
+        source_sent_embed += source_sem_embed
+        target_sent_embed += target_sem_embed
 
         # # gcn layer
         # train_mode = tf.constant(train_mode, dtype=tf.bool)
@@ -235,6 +261,7 @@ class SynAlign(Model):
 
         # get batch data
         eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask,\
+        source_pos, target_pos,\
         s_adj_indices, s_adj_values, s_adj_shape,\
         s_label_indices, s_label_values, s_label_shape, \
         t_adj_indices, t_adj_values, t_adj_shape, \
@@ -254,10 +281,13 @@ class SynAlign(Model):
 
         eval_source_sent.set_shape([None, self.p.max_sent_len])
         eval_target_sent.set_shape([None, self.p.max_sent_len])
+        source_pos.set_shape([None, self.p.max_sent_len])
+        target_pos.set_shape([None, self.p.max_sent_len])
 
         # feed into model
         source_sent_embed, source_att_embed, st_align_score, target_sent_embed, target_att_embed, ts_align_score =\
             self.add_model(eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask,
+                           source_pos, target_pos,
                            s_adj, s_labels, s_adj_inv, s_labels_inv,
                            t_adj, t_labels, t_adj_inv, t_labels_inv, train_mode=False)
 
@@ -288,6 +318,7 @@ class SynAlign(Model):
 
         # get batch data
         source_sent, target_sent, source_mask, target_mask,\
+        source_pos, target_pos,\
         s_adj_indices, s_adj_values, s_adj_shape,\
         s_label_indices, s_label_values, s_label_shape, \
         t_adj_indices, t_adj_values, t_adj_shape, \
@@ -297,6 +328,8 @@ class SynAlign(Model):
         # sentence & mask
         source_sent.set_shape([None, self.p.max_sent_len])
         target_sent.set_shape([None, self.p.max_sent_len])
+        source_pos.set_shape([None, self.p.max_sent_len])
+        target_pos.set_shape([None, self.p.max_sent_len])
         self.source_sent = source_sent
         self.source_mask = source_mask
         self.target_sent = target_sent
@@ -315,7 +348,10 @@ class SynAlign(Model):
 
         # feed into model
         source_sent_embed, source_att_embed, self.at_soft_score, target_sent_embed, target_att_embed, self.ta_soft_score =\
-            self.add_model(source_sent, target_sent, source_mask, target_mask, s_adj, s_labels, s_adj_inv, s_labels_inv, t_adj, t_labels, t_adj_inv, t_labels_inv, train_mode=True)
+            self.add_model(source_sent, target_sent, source_mask, target_mask,
+                           source_pos, target_pos,
+                           s_adj, s_labels, s_adj_inv, s_labels_inv,
+                           t_adj, t_labels, t_adj_inv, t_labels_inv, train_mode=True)
 
         # shuffle the batch of sentences
         s_sent_shift_list = []
@@ -779,8 +815,8 @@ class SynAlign(Model):
     def __init__(self, params):
 
         # data file
-        self.path_to_file = "./data/temp/en-fr-sample.conll"
-        self.eval_path_to_file = "./data/temp/en-fr-eval.conll"
+        self.path_to_file = "./data/temp/en-fr-pos-sample.txt"
+        self.eval_path_to_file = "./data/temp/en-fr-pos-eval.txt"
 
         # create tokenizer
         self.create_tokenizer()
@@ -835,7 +871,7 @@ if __name__ == "__main__":
     parser.add_argument('-train_mode', dest="train_mode", default=True, type=bool, help='train or not')
     parser.add_argument('-lr', dest="lr", default=0.001, type=float, help='Learning rate')
     parser.add_argument('-batch', dest="batch_size", default=64, type=int, help='Batch size')
-    parser.add_argument('-epoch', dest="max_epochs", default=50, type=int, help='Max epochs')
+    parser.add_argument('-epoch', dest="max_epochs", default=30, type=int, help='Max epochs')
     parser.add_argument('-l2', dest="l2", default=0.01, type=float, help='L2 regularization')
     parser.add_argument('-seed', dest="seed", default=1234, type=int, help='Seed for randomization')
     parser.add_argument('-sample', dest="sample", default=1e-4, type=float, help='Subsampling parameter')
