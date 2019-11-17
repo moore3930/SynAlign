@@ -6,6 +6,7 @@ from web.embedding import Embedding
 from web.evaluate import evaluate_on_all
 from nn.directed_gcn import DirectedGCN
 
+import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
 import os
@@ -268,6 +269,7 @@ class SynAlign(Model):
         self.eval_source_sent = eval_source_sent
         self.eval_target_sent = eval_target_sent
         self.st_align_score = st_align_score
+        self.ts_align_score = ts_align_score
 
     def build_train_graph(self):
         """
@@ -436,6 +438,44 @@ class SynAlign(Model):
         f_t.close()
         self.logger.info("Embedding saving done ! ")
 
+    def save_alignment_map(self, align_map, source_sent, target_sent, name):
+        plt.clf()
+        f = plt.figure(figsize=(180, 180))
+        row = 6
+        col = 6
+
+        align_map = np.array(align_map)
+        for i in range(0, row * col):
+            ax = f.add_subplot(row, col, i+1)
+
+            # lenset_xticklabels
+            s_sent_id = [i for i in source_sent[i] if i > 0]
+            s_sent = [self.source_id2word[i] for i in s_sent_id]
+            s_len = len(s_sent)
+            t_sent_id = [i for i in target_sent[i] if i > 0]
+            t_sent = [self.target_id2word[i] for i in t_sent_id]
+            t_len = len(t_sent)
+
+            # add image
+            i = ax.imshow(align_map[i][:s_len, :t_len], cmap='gray', aspect='equal')
+
+            # add labels
+            ax.set_yticks(range(s_len))
+            ax.set_yticklabels(s_sent)
+            ax.set_xticks(range(t_len))
+            ax.set_xticklabels(t_sent, rotation=90)
+            ax.set_xlabel('Target Sequence')
+            ax.set_ylabel('Source Sequence')
+
+        # prob bar
+        cbaxes = f.add_axes([0.2, 0, 0.6, 0.03])
+        cbar = f.colorbar(i, cax=cbaxes, orientation='horizontal')
+        cbar.ax.set_xlabel('Probability', labelpad=2)
+
+        # save
+        HERE = os.path.realpath(os.path.join(os.path.realpath(__file__), '..'))
+        f.savefig(os.path.join(HERE, 'attention_maps', 'test-' + str(name) + '.pdf'), bbox_inches='tight')
+
     def get_alignment(self, epoch, sess):
 
         cnt = 0
@@ -455,6 +495,9 @@ class SynAlign(Model):
             except:
                 print('{} Alignments Writing Done ! '.format(cnt))
                 break
+
+            # save alignment map
+            self.save_alignment_map(st_align_score, s_sent, t_sent, epoch)
 
             # source sent alignment
             for i in range(s_sent.shape[0]):

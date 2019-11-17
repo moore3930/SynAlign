@@ -1,69 +1,48 @@
-import tensorflow as tf
-from helper import *
-import io
+import matplotlib.pyplot as plt
+import os
+import numpy as np
 
-path = "./data/en-de.txt"
-source_tokenizer = tf.keras.preprocessing.text.Tokenizer(filters='')
-target_tokenizer = tf.keras.preprocessing.text.Tokenizer(filters='')
+# w=10
+# h=10
+# fig=plt.figure(figsize=(8, 8))
+# columns = 4
+# rows = 5
+# for i in range(1, columns*rows +1):
+#     img = np.random.randint(10, size=(h,w))
+#     fig.add_subplot(rows, columns, i)
+#     plt.imshow(img)
+# plt.show()
 
-# creating tokenizer
-lines = io.open(path, encoding='UTF-8').read().strip().split('\n')
-word_pairs = [[preprocess_sentence(w) for w in l.split('\t')] for l in lines[:100]]
-inp_text, target_text = zip(*word_pairs)
-source_tokenizer.fit_on_texts(inp_text)
-target_tokenizer.fit_on_texts(target_text)
-print("size of source tokenizer is {}", len(source_tokenizer.word_index))
-print("size of target tokenizer is {}", len(target_tokenizer.word_index))
+# import seaborn as sns
+plt.clf()
+f = plt.figure(figsize=(32, 32))
 
-def line_process(lines):
-    # line = line.strip().lower()
-    line = [l.strip().lower() for l in lines]
-    # source, target = zip(*line)
-    return [line]
+col = 6
+row = 6
 
-def line_process2(lines):
-    # line = line.strip().lower()
-    line = [l.strip().lower().split(b'\t') for l in lines]
-    source_text, target_text = zip(*line)
-    source_text_str = ['hello', 'world']
-    print(type(source_text_str))
-    source_ids = source_tokenizer.texts_to_sequences(source_text_str)
-    # target_ids = target_tokenizer.texts_to_sequences(target_text)
-    print(source_ids)
-    return source_text, target_text
+# # add colorbar
+# cbaxes = f.add_axes([0.2, 0, 0.6, 0.03])
+# cbar = f.colorbar(i, cax=cbaxes, orientation='horizontal')
+# cbar.ax.set_xlabel('Probability', labelpad=2)
 
-def line_process3(lines):
-    # line = line.strip().lower()
-    line = [l.strip().lower().split(b'\t') for l in lines]
-    source_text, target_text = zip(*line)
-    print(source_text)
+for i in range(1, row*col+1):
+    ax = f.add_subplot(row, col, i)
 
-    source_text = [line.decode('utf-8') for line in source_text]
-    target_text = [line.decode('utf-8') for line in target_text]
-    print(source_text)
+    # add image
+    i = ax.imshow(np.random.rand(np.random.randint(1, 5), np.random.randint(1, 5)), cmap='gray', aspect='equal')
 
-    source_ids = source_tokenizer.texts_to_sequences(source_text)
-    target_ids = target_tokenizer.texts_to_sequences(target_text)
-    print(source_ids)
+    # add labels
+    ax.set_yticks(range(3))
+    ax.set_yticklabels(['1', '2', '3'])
 
-    source_ids = tf.keras.preprocessing.sequence.pad_sequences(source_ids, padding='post')
-    target_ids = tf.keras.preprocessing.sequence.pad_sequences(target_ids, padding='post')
-    print(source_ids)
-    return source_ids, target_ids
+    ax.set_xticks(range(3))
+    ax.set_xticklabels(['1', '2', '3'])
 
+    ax.set_xlabel('Target Sequence')
+    ax.set_ylabel('Source Sequence')
 
-line_dataset = tf.data.TextLineDataset([path])
-line_dataset = line_dataset.shuffle(1000).batch(3)
-iter = line_dataset.make_one_shot_iterator()
-with tf.Session() as sess:
-    lines = iter.get_next()
-    lines_res = sess.run(lines)
-    print(lines_res)
-    print(len(lines_res))
-    source_text, target_text = tf.py_func(line_process3, [lines], [tf.int32, tf.int32])
-    # source_text = tf.py_func(line_process3, [lines], [tf.string, tf.string])
+    # ax.legend(loc='best')
 
-    source_text = sess.run(source_text)
-    # print(lines)
-    print(source_text)
-    # print(line_split_valus)
+HERE = os.path.realpath(os.path.join(os.path.realpath(__file__), '..'))
+f.savefig(os.path.join(HERE, 'attention_maps', 'test' + '.pdf'), bbox_inches='tight')
+
