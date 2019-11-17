@@ -18,8 +18,8 @@ class SynAlign(Model):
 
     def create_tokenizer(self):
         # creating tokenizer
-        self.source_tokenizer = tf.keras.preprocessing.text.Tokenizer(filters='')
-        self.target_tokenizer = tf.keras.preprocessing.text.Tokenizer(filters='')
+        self.source_tokenizer = tf.keras.preprocessing.text.Tokenizer(filters='', oov_token='UNK')
+        self.target_tokenizer = tf.keras.preprocessing.text.Tokenizer(filters='', oov_token='UNK')
 
         lines = io.open(self.path_to_file, encoding='UTF-8').read().strip().split('\n')
         word_pairs = [[preprocess_sentence(w) for w in l.split('\t')] for l in lines]
@@ -41,11 +41,13 @@ class SynAlign(Model):
         print(list(self.source_id2word.items())[:100])
         print(list(self.target_id2word.items())[:100])
 
+        # 1 is reserved for 'UNK', but 'UNK' is not add to tokenizer.word_counts
+        # for token level negative sampling
         self.vocab_source_freq = [self.source_tokenizer.word_counts[self.source_id2word[_id]]
-                                  for _id in range(1, self.vocab_source_size)]
+                                  for _id in range(2, self.vocab_source_size)]
         self.vocab_source_freq.insert(0, 0)
         self.vocab_target_freq = [self.target_tokenizer.word_counts[self.target_id2word[_id]]
-                                  for _id in range(1, self.vocab_target_size)]
+                                  for _id in range(2, self.vocab_target_size)]
         self.vocab_target_freq.insert(0, 0)
 
     def batch_process(self, lines, max_len):
