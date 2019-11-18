@@ -77,7 +77,7 @@ def process3():
                 for l in wa_lst:
                     fout.write(l + '\n')
                 wa_lst = []
-        wa_lst.append('num-' + str(num) + ' ' + line_array[1] + ' -> ' + line_array[2])
+        wa_lst.append('num-' + str(num) + ' ' + line_array[1] + ' -> ' + line_array[2] + ' ' + line_array[3])
 
     if len(wa_lst) > 0:
         for l in wa_lst:

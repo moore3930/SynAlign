@@ -443,17 +443,17 @@ class SynAlign(Model):
         fs_multi_wa_out_2.flush()
         fs_multi_wa_out_2.close()
         print('Write Alignment Done ! ')
-        P, R, F1 = get_wa_score('data/en-fr-wa.txt', 'data/en-fr-eval-wa.txt')
+        P, R, F1, AER = get_aer_score('data/en-fr-wa.txt', 'data/en-fr-eval-wa.txt')
         print("=== WA score ===")
-        print("P: {}, R: {}, F1: {}".format(P, R, F1))
+        print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
 
-        P, R, F1 = get_wa_score('data/en-fr-wa.txt', 'data/en-fr-multi-eval-wa-1.txt')
+        P, R, F1, AER = get_aer_score('data/en-fr-wa.txt', 'data/en-fr-multi-eval-wa-1.txt')
         print("=== Multi-WA-1 score ===")
-        print("P: {}, R: {}, F1: {}".format(P, R, F1))
+        print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
 
-        P, R, F1 = get_wa_score('data/en-fr-wa.txt', 'data/en-fr-multi-eval-wa-2.txt')
+        P, R, F1, AER = get_aer_score('data/en-fr-wa.txt', 'data/en-fr-multi-eval-wa-2.txt')
         print("=== Multi-WA-2 score ===")
-        print("P: {}, R: {}, F1: {}".format(P, R, F1))
+        print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
 
         return
 

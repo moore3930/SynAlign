@@ -182,3 +182,22 @@ def get_wa_score(labeled_file, eval_file):
 	R = len(inter_set) / len(labeled_set)
 	F1 = (2 * P * R) / (P + R)
 	return P, R, F1
+
+def get_aer_score(labeled_file, eval_file):
+	s_set = set()
+	p_set = set()
+	eval_set = set()
+	for line in open(labeled_file):
+		line_array = line.strip().split(' ')
+		if line_array[4] == 'S':
+			s_set.add(' '.join(line_array[:4]))
+		p_set.add(' '.join(line_array[:4]))
+	for line in open(eval_file):
+		eval_set.add(line.strip())
+	P = len(eval_set.intersection(p_set)) / len(eval_set)
+	R = len(eval_set.intersection(s_set)) / len(s_set)
+	F1 = (2 * P * R) / (P + R)
+	AER = 1 - (len(eval_set.intersection(s_set)) + len(eval_set.intersection(p_set))) / (len(eval_set) + len(s_set))
+	return P, R, F1, AER
+
+print(get_aer_score('data/en-fr-wa.txt', 'data/en-fr-eval-wa.txt'))
