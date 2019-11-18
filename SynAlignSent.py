@@ -224,16 +224,16 @@ class SynAlign(Model):
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
 
+        # gcn layer
+        train_mode = tf.constant(train_mode, dtype=tf.bool)
+        source_sent_embed = self.s_gcn_layer(source_sent_embed, s_adj, s_labels, s_adj_inv, s_labels_inv, train_mode)
+        target_sent_embed = self.t_gcn_layer(target_sent_embed, t_adj, t_labels, t_adj_inv, t_labels_inv, train_mode)
+
         # add semantic embedding
         source_sem_embed = tf.nn.embedding_lookup(self.sem_embed_table, source_pos)     # [?, n, 128]
         target_sem_embed = tf.nn.embedding_lookup(self.sem_embed_table, target_pos)     # [?, m, 128]
         source_sent_embed += source_sem_embed
         target_sent_embed += target_sem_embed
-
-        # # gcn layer
-        # train_mode = tf.constant(train_mode, dtype=tf.bool)
-        # source_sent_embed = self.s_gcn_layer(source_sent_embed, s_adj, s_labels, s_adj_inv, s_labels_inv, train_mode)
-        # target_sent_embed = self.t_gcn_layer(target_sent_embed, t_adj, t_labels, t_adj_inv, t_labels_inv, train_mode)
 
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
