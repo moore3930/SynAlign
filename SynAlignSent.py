@@ -236,8 +236,8 @@ class SynAlign(Model):
         # target_sent_embed = self.t_gcn_layer(target_sent_embed, t_adj, t_labels, t_adj_inv, t_labels_inv, train_mode)
 
         # pooling
-        source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME')
-        target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME')
+        source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME') + source_sent_embed
+        target_sent_embed = tf.layers.average_pooling1d(target_sent_embed, 3, 1, padding='SAME') + target_sent_embed
 
         source_mask_tile = tf.tile(tf.expand_dims(source_mask, 2), [1, 1, tf.shape(target_mask)[1]])    # [?, n, m]
         target_mask_tile = tf.tile(tf.expand_dims(target_mask, 1), [1, tf.shape(source_mask)[1], 1])    # [?, n, m]
