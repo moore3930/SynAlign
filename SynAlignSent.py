@@ -535,7 +535,7 @@ class SynAlign(Model):
                 break
 
             # save alignment map
-            self.save_alignment_map(st_align_score, s_sent, t_sent, epoch)
+            # self.save_alignment_map(st_align_score, s_sent, t_sent, str(epoch))
 
             # source sent alignment
             for i in range(s_sent.shape[0]):
