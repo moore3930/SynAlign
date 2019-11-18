@@ -235,7 +235,7 @@ class SynAlign(Model):
 
         # add semantic embedding
         source_sem_embed = tf.nn.embedding_lookup(self.sem_embed_table, source_pos)     # [?, n, 128]
-        target_sem_embed = tf.nn.embedding_lookup(self.sem_embed_table, target_pos)     # [?, m, 128]
+        target_sem_embed = tf.nn.embedding_lookup(self.sem_embed_table, target_pos)     # [-?, m, 128]
         source_sent_embed += source_sem_embed
         target_sent_embed += target_sem_embed
 
@@ -870,12 +870,12 @@ if __name__ == "__main__":
                         help='Total number of sentences in file')
     parser.add_argument('-train_mode', dest="train_mode", default=True, type=bool, help='train or not')
     parser.add_argument('-lr', dest="lr", default=0.001, type=float, help='Learning rate')
-    parser.add_argument('-batch', dest="batch_size", default=128, type=int, help='Batch size')
+    parser.add_argument('-batch', dest="batch_size", default=16, type=int, help='Batch size')
     parser.add_argument('-epoch', dest="max_epochs", default=30, type=int, help='Max epochs')
     parser.add_argument('-l2', dest="l2", default=0.01, type=float, help='L2 regularization')
     parser.add_argument('-seed', dest="seed", default=1234, type=int, help='Seed for randomization')
     parser.add_argument('-sample', dest="sample", default=1e-4, type=float, help='Subsampling parameter')
-    parser.add_argument('-num_neg', dest="num_neg", default=32, type=int, help='Number of negative samples')
+    parser.add_argument('-num_neg', dest="num_neg", default=12, type=int, help='Number of negative samples')
     parser.add_argument('-side_int', dest="side_int", default=10000, type=int, help='Number of negative samples')
     parser.add_argument('-gcn_layer', dest="gcn_layer", default=1, type=int,
                         help='Number of layers in GCN over dependency tree')
