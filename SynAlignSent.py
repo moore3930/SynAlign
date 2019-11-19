@@ -367,7 +367,7 @@ class SynAlign(Model):
                 sent_num += 1
                 for j in range(ts_align.shape[1]):
                     if st_align[i][j] > 0:
-                        ts_align_set.add('num-' + str(sent_num) + ' ' + str(j+1) + ' -> ' + str(ts_align[i][j]))
+                        ts_align_set.add('num-' + str(sent_num) + ' ' + str(ts_align[i][j]) + ' -> ' + str(j+1))
 
             # grow-diag alignment
             sent_num = cnt
