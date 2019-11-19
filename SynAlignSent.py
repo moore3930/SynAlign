@@ -174,6 +174,7 @@ class SynAlign(Model):
         self.eval_source_sent = eval_source_sent
         self.eval_target_sent = eval_target_sent
         self.st_align_score = st_align_score
+        self.ts_align_score = ts_align_score
 
     def build_train_graph(self):
         """
@@ -330,48 +331,27 @@ class SynAlign(Model):
         cnt = 0
         step = 0
         sess.run(self.eval_iter.initializer)
-        fs_out = open('{}/{}-st-alginment-{}'.format(self.p.emb_dir, self.p.name, epoch), 'w')
-        ft_out = open('{}/{}-ts-alginment-{}'.format(self.p.emb_dir, self.p.name, epoch), 'w')
-        fs_wa_out = open('data/en-fr-eval-wa.txt', 'w')
-        fs_multi_wa_out_1 = open('data/en-fr-multi-eval-wa-1.txt', 'w')
-        fs_multi_wa_out_2 = open('data/en-fr-multi-eval-wa-2.txt', 'w')
+
+        st_wa_path = 'data/en-fr-eval-st-wa.txt'
+        ts_wa_path = 'data/en-fr-eval-ts-wa.txt'
+        diag_wa_path = 'data/en-fr-eval-diag-wa.txt'
+        f_st_wa_out = open(st_wa_path, 'w')
+        f_ts_wa_out = open(ts_wa_path, 'w')
+        f_diag_wa_out = open(diag_wa_path, 'w')
+        st_align_set = set()
+        ts_align_set = set()
+        grow_diag_align_set = set()
 
         while 1:
             step = step + 1
             try:
-                st_align, ts_align, s_sent, t_sent, st_align_score =\
-                    sess.run([self.st_align, self.ts_align, self.eval_source_sent, self.eval_target_sent, self.st_align_score])
+                st_align, ts_align, s_sent, t_sent, st_align_score, ts_align_score =\
+                    sess.run([self.st_align, self.ts_align,
+                              self.eval_source_sent, self.eval_target_sent,
+                              self.st_align_score, self.ts_align_score])
             except:
                 print('{} Alignments Writing Done ! '.format(cnt))
                 break
-
-            # source sent alignment
-            for i in range(s_sent.shape[0]):
-                s_sent_tmp = []
-                s_align_tmp = []
-                for j in range(s_sent.shape[1]):
-                    if s_sent[i][j] > 0:
-                        s_sent_tmp.append(self.source_id2word[s_sent[i][j]])
-                    if st_align[i][j] > 0:
-                        s_align_tmp.append(str(st_align[i][j]))
-                s_sent_out = " ".join(s_sent_tmp)
-                s_align_out = " ".join(s_align_tmp)
-                fs_out.write(s_sent_out + '\n')
-                fs_out.write(s_align_out + '\n')
-
-            # target sent alignment
-            for i in range(t_sent.shape[0]):
-                t_sent_tmp = []
-                t_align_tmp = []
-                for j in range(t_sent.shape[1]):
-                    if t_sent[i][j] > 0:
-                        t_sent_tmp.append(self.target_id2word[t_sent[i][j]])
-                    if ts_align[i][j] > 0:
-                        t_align_tmp.append(str(ts_align[i][j]))
-                t_sent_out = " ".join(t_sent_tmp)
-                t_align_out = " ".join(t_align_tmp)
-                ft_out.write(t_sent_out + '\n')
-                ft_out.write(t_align_out + '\n')
 
             # s -> t word alignment
             sent_num = cnt
@@ -379,80 +359,53 @@ class SynAlign(Model):
                 sent_num += 1
                 for j in range(st_align.shape[1]):
                     if st_align[i][j] > 0:
-                        fs_wa_out.write('num-' + str(sent_num) + ' ' + str(j+1) + ' -> ' + str(st_align[i][j]) + '\n')
+                        st_align_set.add('num-' + str(sent_num) + ' ' + str(j+1) + ' -> ' + str(st_align[i][j]))
 
-            # s -> t multi word alignment 1
+            # t -> s word alignment
             sent_num = cnt
-            print_set_1 = set()
-            for s in range(st_align_score.shape[0]):
+            for i in range(ts_align.shape[0]):
                 sent_num += 1
-                for i in range(st_align_score.shape[1]):
-                    for j in range(st_align_score.shape[2]):
-                        wd_id = t_sent[s][j]
-                        if wd_id <= 0:
-                            continue
-                        # OOV problem
-                        if wd_id not in self.h_exp_dict or wd_id not in self.h_var_dict:
-                            continue
-                        if st_align_score[s][i][j] > self.h_exp_dict[wd_id] + self.h_var_dict[wd_id]:
-                            print_set_1.add('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(j + 1) + '\n')
+                for j in range(ts_align.shape[1]):
+                    if st_align[i][j] > 0:
+                        ts_align_set.add('num-' + str(sent_num) + ' ' + str(j+1) + ' -> ' + str(ts_align[i][j]))
 
-            # s -> t multi word alignment 2
+            # grow-diag alignment
             sent_num = cnt
-            print_set_2 = set()
-            for s in range(st_align_score.shape[0]):
-                sent_num += 1
-                for i in range(st_align_score.shape[1]):
-                    for j in range(st_align_score.shape[2]):
-                        wd_id = t_sent[s][j]
-                        if wd_id <= 0:
-                            continue
-                        # OOV problem
-                        if wd_id not in self.h_exp_dict or wd_id not in self.h_var_dict:
-                            continue
-                        if st_align_score[s][i][j] > self.h_exp_dict[wd_id] + 2 * self.h_var_dict[wd_id]:
-                            print_set_2.add('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(j + 1) + '\n')
+            temp_set = get_grow_diag_alignment(st_align_score, ts_align_score, sent_num)
+            grow_diag_align_set.update(temp_set)
 
-            # make sure the word get max score in the print set
-            max_score_alignment = np.argmax(st_align_score, 2)
-            sent_num = cnt
-            for i in range(max_score_alignment.shape[0]):
-                sent_num += 1
-                for j in range(max_score_alignment.shape[1]):
-                    print_set_1.add('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(max_score_alignment[i][j]) + '\n')
-                    print_set_2.add('num-' + str(sent_num) + ' ' + str(i + 1) + ' -> ' + str(max_score_alignment[i][j]) + '\n')
-
-            # write down
-            for align in print_set_1:
-                fs_multi_wa_out_1.write(align)
-            for align in print_set_2:
-                fs_multi_wa_out_2.write(align)
-
+            # update cnt
             cnt += self.p.batch_size
-            if step % 10 == 0:
-                self.logger.info('Write Sents: {}'.format(cnt))
 
-        fs_out.flush()
-        fs_out.close()
-        ft_out.flush()
-        ft_out.close()
-        fs_wa_out.flush()
-        fs_wa_out.close()
-        fs_multi_wa_out_1.flush()
-        fs_multi_wa_out_1.close()
-        fs_multi_wa_out_2.flush()
-        fs_multi_wa_out_2.close()
+        self.logger.info('Write Sents: {}'.format(cnt))
+
+        # write alignment down
+        for line in st_align_set:
+            f_st_wa_out.write(line + '\n')
+        f_st_wa_out.flush()
+        f_st_wa_out.close()
+
+        for line in ts_align_set:
+            f_ts_wa_out.write(line + '\n')
+        f_ts_wa_out.flush()
+        f_ts_wa_out.close()
+
+        for line in grow_diag_align_set:
+            f_diag_wa_out.write(line + '\n')
+        f_diag_wa_out.flush()
+        f_diag_wa_out.close()
+
         print('Write Alignment Done ! ')
-        P, R, F1, AER = get_aer_score('data/en-fr-wa.txt', 'data/en-fr-eval-wa.txt')
-        print("=== WA score ===")
+        P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', st_wa_path)
+        print("=== s -> t WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
 
-        P, R, F1, AER = get_aer_score('data/en-fr-wa.txt', 'data/en-fr-multi-eval-wa-1.txt')
-        print("=== Multi-WA-1 score ===")
+        P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', ts_wa_path)
+        print("=== t -> s WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
 
-        P, R, F1, AER = get_aer_score('data/en-fr-wa.txt', 'data/en-fr-multi-eval-wa-2.txt')
-        print("=== Multi-WA-2 score ===")
+        P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', diag_wa_path)
+        print("=== diag WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
 
         return
@@ -546,11 +499,6 @@ class SynAlign(Model):
         st = time.time()
         sess.run(self.train_iter.initializer)
 
-        # exp & div dict
-        self.h_word_cnt = {}
-        self.h_exp_dict = {}
-        self.h_var_dict = {}
-
         while 1:
             step = step + 1
             # loss, _ = sess.run([self.loss, self.train_op])
@@ -561,7 +509,6 @@ class SynAlign(Model):
             except:
                 break
             losses.append(loss)
-            self.get_exp_and_div(target_sent, source_mask, target_mask, at_soft_score)
 
             cnt += self.p.batch_size
             if step % 10 == 0:
@@ -608,8 +555,8 @@ class SynAlign(Model):
             self.logger.info('Epoch: {}'.format(epoch))
             train_loss = self.run_epoch(sess, epoch)
 
-            self.eval_on_word_embedding(sess)
-            self.checkpoint(epoch, sess)
+            # self.eval_on_word_embedding(sess)
+            # self.checkpoint(epoch, sess)
             self.get_alignment(epoch, sess)
 
             self.logger.info(
