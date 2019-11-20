@@ -540,6 +540,6 @@ ts_score = ts_score + _add
 
 import time
 s_time = time.time()
-alignment_set = get_grow_diag_alignment(st_score, ts_score, 1)
+alignment_set = get_max_grow_diag_alignment(st_score, ts_score, 1)
 print(time.time() - s_time)
 
