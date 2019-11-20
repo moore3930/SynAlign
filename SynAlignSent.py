@@ -412,22 +412,31 @@ class SynAlign(Model):
         f_diag_wa_out.flush()
         f_diag_wa_out.close()
 
+        self.fout_results.write("epoch: {}\n".format(epoch))
         print('Write Alignment Done ! ')
         P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', st_wa_path)
         print("=== s -> t WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
+        self.fout_results.write("=== s -> t WA score ===\n")
+        self.fout_results.write("P: {}, R: {}, F1: {}, AER: {}\n".format(P, R, F1, AER))
 
         P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', ts_wa_path)
         print("=== t -> s WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
+        self.fout_results.write("=== t -> s WA score ===\n")
+        self.fout_results.write("P: {}, R: {}, F1: {}, AER: {}\n".format(P, R, F1, AER))
 
         P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', max_diag_wa_path)
         print("=== max diag WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
+        self.fout_results.write("=== max diag WA score ===\n")
+        self.fout_results.write("P: {}, R: {}, F1: {}, AER: {}\n".format(P, R, F1, AER))
 
         P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', diag_wa_path)
         print("=== diag WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
+        self.fout_results.write("=== diag WA score ===\n")
+        self.fout_results.write("P: {}, R: {}, F1: {}, AER: {}\n".format(P, R, F1, AER))
 
         return
 
@@ -584,11 +593,23 @@ class SynAlign(Model):
                 '[Epoch {}]: Training Loss: {:.5}, Best Loss: {:.5}\n'.format(
                     epoch, train_loss, self.best_int_avg))
 
+        self.fout_results.flush()
+        self.fout_results.close()
+
     def __init__(self, params):
 
         # data file
         self.path_to_file = "./data/en-fr-sample.txt"
         self.eval_path_to_file = "./data/en-fr-eval.txt"
+
+        # exps records
+        result_path = 'data/results.txt'
+        self.fout_results = open(result_path, 'a')
+        exp_name = "====== batch: {} - num_neg: {} - lr: {} - emb_dim: {} ======\n\n".format(self.p.batch_size,
+                                                                                             self.p.num_neg,
+                                                                                             self.p.lr,
+                                                                                             self.p.embed_dim)
+        self.fout_results.write(exp_name)
 
         # create tokenizer
         self.create_tokenizer()
