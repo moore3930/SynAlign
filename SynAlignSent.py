@@ -145,11 +145,15 @@ class SynAlign(Model):
         ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), mul_score,
                             tf.ones(tf.shape(mul_score), dtype=tf.float32) * -9999)    # [?, m, n]
         ta_soft_score = tf.nn.softmax(ta_score)     # [?, m, n]
+        ta_soft_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]),
+                                 ta_soft_score, tf.zeros(tf.shape(ta_soft_score), dtype=tf.float32))  # [?, n, m]
         source_att_embed = tf.matmul(ta_soft_score, source_sent_embed)  # [?, m, 128]
 
         at_score = tf.where(mask, tf.transpose(mul_score, perm=[0, 2, 1]),
                             tf.ones(tf.shape(mul_score), dtype=tf.float32) * -9999)    # [?, n, m]
         at_soft_score = tf.nn.softmax(at_score)     # [?, n, m]
+        at_soft_score = tf.where(mask,
+                                 at_soft_score, tf.zeros(tf.shape(at_soft_score), dtype=tf.float32))  # [?, n, m]
         target_att_embed = tf.matmul(at_soft_score, target_sent_embed)  # [?, n, 128]
 
         return source_sent_embed, source_att_embed, at_soft_score, target_sent_embed, target_att_embed, ta_soft_score

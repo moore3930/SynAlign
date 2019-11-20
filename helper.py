@@ -471,7 +471,8 @@ def get_max_grow_diag_alignment(st_lst, ts_lst, shift_num):
             condidate_set = set()
             for i in range(align_map.shape[0]):
                 for j in range(align_map.shape[1]):
-                    if align_map[i][j] == 1 and (i not in s_aligned or j not in t_aligned):
+                    if align_map[i][j] == 1 and (i not in s_aligned or j not in t_aligned) and\
+                            (st_score[i][j] > 0 or ts_score[i][j] > 0):
                         condidate_set.add((i, j))
 
             if len(condidate_set) == 0:
@@ -522,8 +523,8 @@ def get_max_grow_diag_alignment(st_lst, ts_lst, shift_num):
         # step2
         align_map = _grow_diag(st_score[i], ts_score[i], align_map)
 
-        # # step3
-        # align_map = _final_process(st_score[i], ts_score[i], align_map)
+        # step3
+        align_map = _final_process(st_score[i], ts_score[i], align_map)
 
         # update alignment_set
         cur_align_set = _get_align_set(align_map, shift_num + i + 1)
