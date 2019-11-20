@@ -143,12 +143,12 @@ class SynAlign(Model):
         mul_score = tf.matmul(target_sent_embed, source_sent_embed, transpose_b=True)    # [?, m, n]
 
         ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), mul_score,
-                            tf.ones(tf.shape(mul_score), dtype=tf.float32) * -999)    # [?, m, n]
+                            tf.ones(tf.shape(mul_score), dtype=tf.float32) * -9999)    # [?, m, n]
         ta_soft_score = tf.nn.softmax(ta_score)     # [?, m, n]
         source_att_embed = tf.matmul(ta_soft_score, source_sent_embed)  # [?, m, 128]
 
         at_score = tf.where(mask, tf.transpose(mul_score, perm=[0, 2, 1]),
-                            tf.ones(tf.shape(mul_score), dtype=tf.float32) * -999)    # [?, n, m]
+                            tf.ones(tf.shape(mul_score), dtype=tf.float32) * -9999)    # [?, n, m]
         at_soft_score = tf.nn.softmax(at_score)     # [?, n, m]
         target_att_embed = tf.matmul(at_soft_score, target_sent_embed)  # [?, n, 128]
 
@@ -371,7 +371,7 @@ class SynAlign(Model):
 
             # grow-diag alignment
             sent_num = cnt
-            temp_set = get_grow_diag_alignment(st_align_score, ts_align_score, sent_num)
+            temp_set = get_max_grow_diag_alignment(st_align_score, ts_align_score, sent_num)
             grow_diag_align_set.update(temp_set)
 
             # update cnt
@@ -641,7 +641,7 @@ if __name__ == "__main__":
 
     # Added these two arguments to enable others to personalize the training set. Otherwise, the programme may suffer from memory overflow easily.
     # It is suggested that the -maxlen be set no larger than 100.
-    parser.add_argument('-maxsentlen', dest="max_sent_len", default=80, type=int,
+    parser.add_argument('-maxsentlen', dest="max_sent_len", default=60, type=int,
                         help='Max length of the sentences in data.txt (default: 40)')
     parser.add_argument('-maxdeplen', dest="max_dep_len", default=800, type=int,
                         help='Max length of the dependency relations in data.txt (default: 800)')
