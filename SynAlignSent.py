@@ -268,7 +268,8 @@ class SynAlign(Model):
 
         # agree loss
         agree_loss = tf.keras.losses.MSE(self.at_soft_score, tf.transpose(self.ta_soft_score, perm=[0, 2, 1]))  # [?, n]
-        self.agree_loss = tf.reduce_mean(tf.reduce_sum(agree_loss, 1))
+        # self.agree_loss = tf.reduce_mean(tf.reduce_sum(agree_loss, 1))
+        self.agree_loss = tf.reduce_sum(agree_loss)
 
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
 
