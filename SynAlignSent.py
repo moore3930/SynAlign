@@ -437,6 +437,7 @@ class SynAlign(Model):
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
         self.fout_results.write("=== diag WA score ===\n")
         self.fout_results.write("P: {}, R: {}, F1: {}, AER: {}\n".format(P, R, F1, AER))
+        self.fout_results.flush()
 
         return
 
@@ -615,6 +616,7 @@ class SynAlign(Model):
                                                                                              self.p.lr,
                                                                                              self.p.embed_dim)
         self.fout_results.write(exp_name)
+        self.fout_results.flush()
 
         if not os.path.isdir(self.p.log_dir):
             os.system('mkdir {}'.format(self.p.log_dir))
