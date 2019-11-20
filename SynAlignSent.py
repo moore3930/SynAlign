@@ -602,6 +602,11 @@ class SynAlign(Model):
         self.path_to_file = "./data/en-fr-sample.txt"
         self.eval_path_to_file = "./data/en-fr-eval.txt"
 
+        # create tokenizer
+        self.create_tokenizer()
+
+        self.p = params
+
         # exps records
         result_path = 'data/results.txt'
         self.fout_results = open(result_path, 'a')
@@ -610,11 +615,6 @@ class SynAlign(Model):
                                                                                              self.p.lr,
                                                                                              self.p.embed_dim)
         self.fout_results.write(exp_name)
-
-        # create tokenizer
-        self.create_tokenizer()
-
-        self.p = params
 
         if not os.path.isdir(self.p.log_dir):
             os.system('mkdir {}'.format(self.p.log_dir))
