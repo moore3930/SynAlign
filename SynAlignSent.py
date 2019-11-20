@@ -266,6 +266,10 @@ class SynAlign(Model):
         target_mask = tf.concat([tf.expand_dims(target_mask, axis=1), target_neg_mask], axis=1)  # [?, neg_num + 1, max_len]
         target_loss = tf.where(target_mask, target_loss, tf.zeros(tf.shape(target_loss)))   # get valid loss
 
+        # agree loss
+        agree_loss = tf.keras.losses.MSE(self.at_soft_score, tf.transpose(self.ta_soft_score, perm=[0, 2, 1]))  # [?, n]
+        self.agree_loss = tf.reduce_mean(tf.reduce_sum(agree_loss, 1))
+
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
 
         # loss = tf.Print(loss, [loss], message='detail of loss', summarize=1000)
@@ -274,7 +278,7 @@ class SynAlign(Model):
         #         self.regularizer, tf.get_collection(
         #             tf.GraphKeys.REGULARIZATION_LOSSES))
 
-        self.loss = loss
+        self.loss = loss + self.agree_loss
 
         return
 
@@ -534,8 +538,8 @@ class SynAlign(Model):
             step = step + 1
             # loss, _ = sess.run([self.loss, self.train_op])
             try:
-                loss, _, source_mask, target_sent, target_mask, at_soft_score =\
-                    sess.run([self.loss, self.train_op,  self.source_mask,
+                loss, agree_loss, _, source_mask, target_sent, target_mask, at_soft_score =\
+                    sess.run([self.loss, self.agree_loss, self.train_op,  self.source_mask,
                               self.target_sent, self.target_mask, self.at_soft_score])
             except:
                 break
@@ -544,12 +548,13 @@ class SynAlign(Model):
             cnt += self.p.batch_size
             if step % 10 == 0:
                 self.logger.info(
-                    'E:{} (Sents: {}/{} [{}]): Train Loss \t{:.5}\t{}\t{:.5}'.format(
+                    'E:{} (Sents: {}/{} [{}]): Train Loss \t{:.5}\t{:.5}\t{}\t{:.5}'.format(
                         epoch,
                         cnt,
                         10000,
                         round(cnt / 10000 * 100, 1),
                         np.mean(losses),
+                        agree_loss,
                         self.p.name,
                         self.best_int_avg))
             en = time.time()
