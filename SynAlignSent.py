@@ -338,16 +338,16 @@ class SynAlign(Model):
 
         st_wa_path = 'data/en-fr-eval-st-wa.txt'
         ts_wa_path = 'data/en-fr-eval-ts-wa.txt'
+        max_diag_wa_path = 'data/en-fr-eval-max-diag-wa.txt'
         diag_wa_path = 'data/en-fr-eval-diag-wa.txt'
-        diag_final_wa_path = 'data/en-fr-eval-diag-final-wa.txt'
         f_st_wa_out = open(st_wa_path, 'w')
         f_ts_wa_out = open(ts_wa_path, 'w')
+        f_max_diag_wa_out = open(max_diag_wa_path, 'w')
         f_diag_wa_out = open(diag_wa_path, 'w')
-        f_diag_final_wa_out = open(diag_final_wa_path, 'w')
         st_align_set = set()
         ts_align_set = set()
+        grow_max_diag_align_set = set()
         grow_diag_align_set = set()
-        grow_diag_final_align_set = set()
 
         while 1:
             step = step + 1
@@ -376,15 +376,15 @@ class SynAlign(Model):
                     if ts_align[i][j] > 0:
                         ts_align_set.add('num-' + str(sent_num) + ' ' + str(ts_align[i][j]) + ' -> ' + str(j+1))
 
-            # grow-diag alignment
+            # grow-max-diag alignment
             sent_num = cnt
             temp_set = get_max_grow_diag_alignment(st_align_score, ts_align_score, sent_num)
-            grow_diag_align_set.update(temp_set)
+            grow_max_diag_align_set.update(temp_set)
 
-            # grow-diag-final alignment
+            # grow-diag alignment
             sent_num = cnt
-            temp_set = get_max_grow_diag_final_alignment(st_align_score, ts_align_score, sent_num)
-            grow_diag_final_align_set.update(temp_set)
+            temp_set = get_grow_diag_alignment(st_align_score, ts_align_score, sent_num)
+            grow_diag_align_set.update(temp_set)
 
             # update cnt
             cnt += self.p.batch_size
@@ -402,15 +402,15 @@ class SynAlign(Model):
         f_ts_wa_out.flush()
         f_ts_wa_out.close()
 
+        for line in grow_max_diag_align_set:
+            f_max_diag_wa_out.write(line + '\n')
+        f_max_diag_wa_out.flush()
+        f_max_diag_wa_out.close()
+
         for line in grow_diag_align_set:
             f_diag_wa_out.write(line + '\n')
         f_diag_wa_out.flush()
         f_diag_wa_out.close()
-
-        for line in grow_diag_final_align_set:
-            f_diag_final_wa_out.write(line + '\n')
-        f_diag_final_wa_out.flush()
-        f_diag_final_wa_out.close()
 
         print('Write Alignment Done ! ')
         P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', st_wa_path)
@@ -421,12 +421,12 @@ class SynAlign(Model):
         print("=== t -> s WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
 
-        P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', diag_wa_path)
-        print("=== diag WA score ===")
+        P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', max_diag_wa_path)
+        print("=== max diag WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
 
-        P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', diag_final_wa_path)
-        print("=== diag & final WA score ===")
+        P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', diag_wa_path)
+        print("=== diag WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
 
         return
