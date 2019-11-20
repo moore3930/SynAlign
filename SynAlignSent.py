@@ -383,7 +383,7 @@ class SynAlign(Model):
 
             # grow-diag-final alignment
             sent_num = cnt
-            temp_set = get_grow_diag_final_alignment(st_align_score, ts_align_score, sent_num)
+            temp_set = get_max_grow_diag_final_alignment(st_align_score, ts_align_score, sent_num)
             grow_diag_final_align_set.update(temp_set)
 
             # update cnt
