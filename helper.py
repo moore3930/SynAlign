@@ -355,6 +355,172 @@ def get_grow_diag_alignment(st_lst, ts_lst, shift_num):
         align_map = _grow_diag(st_score[i], ts_score[i], align_map)
         print(align_map)
 
+        # # step3
+        # align_map = _final_process(st_score[i], ts_score[i], align_map)
+
+        # update alignment_set
+        cur_align_set = _get_align_set(align_map, shift_num + i + 1)
+        alignment_set.update(cur_align_set)
+
+    return alignment_set
+
+def get_grow_diag_final_alignment(st_lst, ts_lst, shift_num):
+
+    def _get_max_score_alignment(map, transpose=False):
+        align_set = set()
+        score_map = np.array(map)
+        if len(score_map.shape) != 2:
+            print('the shape must be 2 !')
+            raise Exception
+        max_align = score_map.argmax(axis=1)
+        if transpose == False:
+            for i in range(len(max_align)):
+                align_set.add((i, max_align[i]))
+        else:
+            for i in range(len(max_align)):
+                align_set.add((max_align[i], i))
+        return align_set
+
+    def _get_align_set(align_map, shift):
+
+        align_set = set()
+        for i in range(align_map.shape[0]):
+            for j in range(align_map.shape[1]):
+                if align_map[i][j] == 2:
+                    align_set.add('num-' + str(shift) + ' ' + str(i+1) + ' -> ' + str(j+1))
+        return align_set
+
+    def _grow_diag(st_score, ts_score, align_map):
+        neighbouring = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+        st_score = np.array(st_score)   # [n, m]
+        ts_score = np.array(ts_score).transpose((1, 0)) # [n, m]
+        rows = align_map.shape[0]
+        cols = align_map.shape[1]
+
+        s_aligned = set()
+        t_aligned = set()
+
+        while 1:
+            # init s_aligned and t_aligned
+            for i in range(rows):
+                for j in range(cols):
+                    if align_map[i][j] == 2:
+                        s_aligned.add(i)
+                        t_aligned.add(j)
+
+            # get candidates
+            candidate_set = set()
+            for i in range(rows):
+                for j in range(cols):
+                    if align_map[i][j] == 2:
+                        for dirs in neighbouring:
+                            x = i + dirs[0]
+                            y = j + dirs[1]
+                            if 0 <= x < rows and 0 <= y < cols and (x not in s_aligned or y not in t_aligned) and\
+                                    align_map[x][y] == 1:
+                                candidate_set.add((x, y))
+
+            # get new alignment if exists
+            is_end = True
+            max_x = -1
+            max_y = -1
+            max_score = 0
+            for candidate in candidate_set:
+                x = candidate[0]
+                y = candidate[1]
+                if st_score[x][y] > max_score or ts_score[x][y] > max_score:
+                    max_score = st_score[x][y] if st_score[x][y] > ts_score[x][y] else ts_score[x][y]
+                    max_x = x
+                    max_y = y
+            if max_x >= 0 and max_y >= 0:
+                align_map[max_x][max_y] = 2
+                is_end = False
+
+            if is_end:
+                break
+        return align_map
+
+    def _final_process(st_score, ts_score, align_map):
+
+        st_score = np.array(st_score)
+        ts_score = np.array(ts_score).transpose()
+
+        if st_score.shape != align_map.shape:
+            print('The shapes of input1 and input3 is not consistent !')
+            raise Exception
+
+        if ts_score.shape != align_map.shape:
+            print('The shapes of input2 and input3 is not consistent !')
+            raise Exception
+
+        # get final alignments
+        while 1:
+            # init
+            s_aligned = set()
+            t_aligned = set()
+            for i in range(align_map.shape[0]):
+                for j in range(align_map.shape[1]):
+                    if align_map[i][j] == 2:
+                        s_aligned.add(i)
+                        t_aligned.add(j)
+
+            # get condidates
+            condidate_set = set()
+            for i in range(align_map.shape[0]):
+                for j in range(align_map.shape[1]):
+                    if align_map[i][j] == 1 and (i not in s_aligned or j not in t_aligned):
+                        condidate_set.add((i, j))
+
+            if len(condidate_set) == 0:
+                break
+
+            # get one max alignment
+            max_x = -1
+            max_y = -1
+            max_score = 0
+            for tup in condidate_set:
+                x = tup[0]
+                y = tup[1]
+                tmp_score = st_score[x][y] if st_score[x][y] > ts_score[x][y] else ts_score[x][y]
+                if tmp_score > max_score:
+                    max_x = x
+                    max_y = y
+                    max_score = tmp_score
+            if max_x >= 0 and max_y >= 0:
+                align_map[max_x][max_y] = 2
+
+        return align_map
+
+    st_score = np.array(st_lst)
+    ts_score = np.array(ts_lst)
+    if st_score.shape != ts_score.transpose((0, 2, 1)).shape:
+        print('the shape of two input matrix must be consistent')
+        raise Exception
+
+    alignment_set = set()
+    for i in range(st_score.shape[0]):
+        # init align map, 2: sure 1: candidate 0: not align
+        align_map = np.zeros(st_score[i].shape, dtype=np.int32)
+        cur_align_set = set()
+
+        # step1
+        st_align_set = _get_max_score_alignment(st_score[i], False)
+        ts_align_set = _get_max_score_alignment(ts_score[i], True)
+        cur_align_set.update(st_align_set.intersection(ts_align_set))
+        for tup in cur_align_set:
+            align_map[tup[0]][tup[1]] = 2
+        for tup in st_align_set:
+            if align_map[tup[0]][tup[1]] == 0:
+                align_map[tup[0]][tup[1]] = 1
+        for tup in ts_align_set:
+            if align_map[tup[0]][tup[1]] == 0:
+                align_map[tup[0]][tup[1]] = 1
+        print(align_map)
+
+        # step2
+        align_map = _grow_diag(st_score[i], ts_score[i], align_map)
+        print(align_map)
+
         # step3
         align_map = _final_process(st_score[i], ts_score[i], align_map)
 
@@ -363,7 +529,6 @@ def get_grow_diag_alignment(st_lst, ts_lst, shift_num):
         alignment_set.update(cur_align_set)
 
     return alignment_set
-
 
 def get_max_grow_diag_alignment(st_lst, ts_lst, shift_num):
     # st_lst: [?, n, m]
