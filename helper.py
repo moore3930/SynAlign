@@ -468,7 +468,8 @@ def get_grow_diag_final_alignment(st_lst, ts_lst, shift_num):
             condidate_set = set()
             for i in range(align_map.shape[0]):
                 for j in range(align_map.shape[1]):
-                    if align_map[i][j] == 1 and (i not in s_aligned or j not in t_aligned):
+                    if align_map[i][j] == 1 and (i not in s_aligned or j not in t_aligned) and\
+                            (st_score[i][j] > 0 or ts_score[i][j] > 0):
                         condidate_set.add((i, j))
 
             if len(condidate_set) == 0:
@@ -706,6 +707,6 @@ ts_score = ts_score + _add
 
 import time
 s_time = time.time()
-alignment_set = get_max_grow_diag_alignment(st_score, ts_score, 1)
+alignment_set = get_grow_diag_final_alignment(st_score, ts_score, 1)
 print(time.time() - s_time)
 
