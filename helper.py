@@ -613,7 +613,6 @@ def get_grow_diag_alignment(st_lst, ts_lst, shift_num):
 
         # step2
         align_map = _grow_diag(align_map)
-        print(align_map)
 
         # update alignment_set
         cur_align_set = _get_align_set(align_map, shift_num + i + 1)
