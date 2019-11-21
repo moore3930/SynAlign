@@ -10,6 +10,7 @@ import numpy as np
 import os
 import io
 import time
+import random
 
 # model
 class SynAlign(Model):
@@ -408,12 +409,14 @@ class SynAlign(Model):
         f_ts_wa_out.close()
 
         for line in grow_max_diag_align_set:
-            f_max_diag_wa_out.write(line + '\n')
+            if random.random() < 0.9:
+                f_max_diag_wa_out.write(line + '\n')
         f_max_diag_wa_out.flush()
         f_max_diag_wa_out.close()
 
         for line in grow_diag_align_set:
-            f_diag_wa_out.write(line + '\n')
+            if random.random() < 0.9:
+                f_diag_wa_out.write(line + '\n')
         f_diag_wa_out.flush()
         f_diag_wa_out.close()
 
