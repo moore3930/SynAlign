@@ -181,21 +181,25 @@ def max_length(tensor):
 
 
 def get_wa_score(labeled_file, eval_file):
-	s_set = set()
-	p_set = set()
-	eval_set = set()
-	for line in open(labeled_file):
-		line_array = line.strip().split(' ')
-		if line_array[4] == 'S':
-			s_set.add(' '.join(line_array[:4]))
-		p_set.add(' '.join(line_array[:4]))
-	for line in open(eval_file):
-		eval_set.add(line.strip())
-	P = len(eval_set.intersection(p_set)) / len(eval_set)
-	R = len(eval_set.intersection(s_set)) / len(s_set)
-	F1 = (2 * P * R) / (P + R)
-	AER = 1 - (len(eval_set.intersection(s_set)) + len(eval_set.intersection(p_set))) / (len(eval_set) + len(s_set))
-	return P, R, F1, AER
+    s_set = set()
+    p_set = set()
+    eval_set = set()
+
+    for line in open(labeled_file):
+        line_array = line.strip().split(' ')
+        if line_array[4] == 'S':
+            s_set.add(' '.join(line_array[:4]))
+        p_set.add(' '.join(line_array[:4]))
+
+    for line in open(eval_file):
+        eval_set.add(line.strip())
+
+    P = len(eval_set.intersection(p_set)) / len(eval_set)
+    R = len(eval_set.intersection(s_set)) / len(s_set)
+    F1 = (2 * P * R) / (P + R)
+    AER = 1 - (len(eval_set.intersection(s_set)) + len(eval_set.intersection(p_set))) / (len(eval_set) + len(s_set))
+
+    return P, R, F1, AER
 
 
 def get_max_grow_diag_final_alignment(st_lst, ts_lst, shift_num):
@@ -611,8 +615,8 @@ def get_grow_diag_alignment(st_lst, ts_lst, shift_num):
             if align_map[tup[0]][tup[1]] == 0:
                 align_map[tup[0]][tup[1]] = 1
 
-        # step2
-        align_map = _grow_diag(align_map)
+        # # step2
+        # align_map = _grow_diag(align_map)
 
         # update alignment_set
         cur_align_set = _get_align_set(align_map, shift_num + i + 1)
@@ -621,15 +625,17 @@ def get_grow_diag_alignment(st_lst, ts_lst, shift_num):
     return alignment_set
 
 
-st_score = np.random.rand(1, 10, 10)
-ts_score = np.random.rand(1, 10, 10)
-_add = np.expand_dims(np.eye(10) * 0.3, 0)
-st_score = st_score + _add
-ts_score = ts_score + _add
+get_wa_score('data/en-fr-wa.txt', 'data/en-fr-eval-wa.txt')
 
-import time
-s_time = time.time()
-alignment_set = get_grow_diag_alignment(st_score, ts_score, 1)
-
-print(time.time() - s_time)
+# st_score = np.random.rand(1, 10, 10)
+# ts_score = np.random.rand(1, 10, 10)
+# _add = np.expand_dims(np.eye(10) * 0.3, 0)
+# st_score = st_score + _add
+# ts_score = ts_score + _add
+#
+# import time
+# s_time = time.time()
+# alignment_set = get_grow_diag_alignment(st_score, ts_score, 1)
+#
+# print(time.time() - s_time)
 
