@@ -665,7 +665,7 @@ if __name__ == "__main__":
     parser.add_argument('-name', dest="name", default='test_run', help='Name of the run')
     parser.add_argument('-train_data', dest="train_data", default='data/en-fr/en-fr-sample.txt', help='Name of the run')
     parser.add_argument('-eval_data', dest="eval_data", default='data/en-fr/en-fr-test.txt', help='Name of the run')
-    parser.add_argument('-eval_data_wa', dest="eval_data_wa", default='data/en-fr-test-wa.txt', help='Name of the run')
+    parser.add_argument('-eval_data_wa', dest="eval_data_wa", default='data/en-fr/en-fr-test-wa.txt', help='Name of the run')
     parser.add_argument('-embed', dest="embed_loc", default=None, help='Embedding for initialization')
     parser.add_argument('-embed_dim', dest="embed_dim", default=128, type=int, help='Embedding Dimension')
     parser.add_argument('-total', dest="total_sents", default=56974869, type=int,
