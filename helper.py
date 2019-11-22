@@ -625,7 +625,7 @@ def get_intersect_alignment(st_lst, ts_lst, shift_num):
     return alignment_set
 
 
-get_wa_score('data/en-fr-valid-wa.txt', 'data/en-fr-pred-wa.txt')
+# get_wa_score('data/en-fr-valid-wa.txt', 'data/en-fr-pred-wa.txt')
 
 # st_score = np.random.rand(1, 10, 10)
 # ts_score = np.random.rand(1, 10, 10)

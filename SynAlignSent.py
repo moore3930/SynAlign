@@ -345,11 +345,11 @@ class SynAlign(Model):
         st_wa_path = 'data/en-fr-pred-st-wa.txt'
         ts_wa_path = 'data/en-fr-pred-ts-wa.txt'
         max_diag_wa_path = 'data/en-fr-pred-max-diag-wa.txt'
-        diag_wa_path = 'data/en-fr-pred-diag-wa.txt'
+        intersect_wa_path = 'data/en-fr-pred-intersect-wa.txt'
         f_st_wa_out = open(st_wa_path, 'w')
         f_ts_wa_out = open(ts_wa_path, 'w')
         f_max_diag_wa_out = open(max_diag_wa_path, 'w')
-        f_diag_wa_out = open(diag_wa_path, 'w')
+        f_intersect_wa_out = open(intersect_wa_path, 'w')
         st_align_set = set()
         ts_align_set = set()
         grow_max_diag_align_set = set()
@@ -414,31 +414,31 @@ class SynAlign(Model):
         f_max_diag_wa_out.close()
 
         for line in intersect_align_set:
-            f_diag_wa_out.write(line + '\n')
-        f_diag_wa_out.flush()
-        f_diag_wa_out.close()
+            f_intersect_wa_out.write(line + '\n')
+        f_intersect_wa_out.flush()
+        f_intersect_wa_out.close()
 
         self.fout_results.write("epoch: {}\n".format(epoch))
         print('Write Alignment Done ! ')
-        P, R, F1, AER = get_wa_score('data/en-fr-valid-wa.txt', st_wa_path)
+        P, R, F1, AER = get_wa_score(self.p.eval_data_wa, st_wa_path)
         print("=== s -> t WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
         self.fout_results.write("=== s -> t WA score ===\n")
         self.fout_results.write("P: {}, R: {}, F1: {}, AER: {}\n".format(P, R, F1, AER))
 
-        P, R, F1, AER = get_wa_score('data/en-fr-valid-wa.txt', ts_wa_path)
+        P, R, F1, AER = get_wa_score(self.p.eval_data_wa, ts_wa_path)
         print("=== t -> s WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
         self.fout_results.write("=== t -> s WA score ===\n")
         self.fout_results.write("P: {}, R: {}, F1: {}, AER: {}\n".format(P, R, F1, AER))
 
-        P, R, F1, AER = get_wa_score('data/en-fr-valid-wa.txt', max_diag_wa_path)
+        P, R, F1, AER = get_wa_score(self.p.eval_data_wa, max_diag_wa_path)
         print("=== max diag WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
         self.fout_results.write("=== max diag WA score ===\n")
         self.fout_results.write("P: {}, R: {}, F1: {}, AER: {}\n".format(P, R, F1, AER))
 
-        P, R, F1, AER = get_wa_score('data/en-fr-valid-wa.txt', diag_wa_path)
+        P, R, F1, AER = get_wa_score(self.p.eval_data_wa, intersect_wa_path)
         print("=== intersection WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
         self.fout_results.write("=== diag WA score ===\n")
@@ -606,14 +606,14 @@ class SynAlign(Model):
 
     def __init__(self, params):
 
+        self.p = params
+
         # data file
-        self.path_to_file = "./data/en-fr/en-fr-merge.txt"
-        self.eval_path_to_file = "./data/en-fr/en-fr-test.txt"
+        self.path_to_file = self.p.train_data
+        self.eval_path_to_file = self.p.eval_data
 
         # create tokenizer
         self.create_tokenizer()
-
-        self.p = params
 
         # exps records
         result_path = 'data/results.txt'
@@ -663,6 +663,9 @@ if __name__ == "__main__":
 
     parser.add_argument('-gpu', dest="gpu", default='0', help='GPU to use')
     parser.add_argument('-name', dest="name", default='test_run', help='Name of the run')
+    parser.add_argument('-train_data', dest="train_data", default='data/en-fr/en-fr-sample.txt', help='Name of the run')
+    parser.add_argument('-eval_data', dest="eval_data", default='data/en-fr/en-fr-test.txt', help='Name of the run')
+    parser.add_argument('-eval_data_wa', dest="eval_data_wa", default='data/en-fr-test-wa.txt', help='Name of the run')
     parser.add_argument('-embed', dest="embed_loc", default=None, help='Embedding for initialization')
     parser.add_argument('-embed_dim', dest="embed_dim", default=128, type=int, help='Embedding Dimension')
     parser.add_argument('-total', dest="total_sents", default=56974869, type=int,
