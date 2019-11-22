@@ -13,6 +13,8 @@ def precess1():
         for ro, en in zip(r_fin, e_fin):
             ro = ro.strip()
             en = en.strip()
+            if len(ro) == 0 or len(en) == 0:
+                continue
             fout.write(ro + '\t' + en + '\n')
         r_fin.close()
         e_fin.close()
@@ -26,14 +28,15 @@ def precess2():
     cur_dir = '/Users/Moore/Documents/paper/CWA/material/English-Romanian ACL2005/Romanian-English.test/'
 
     fout = open(eval_path_out, 'w')
-
     for line in open(filelist_path):
         line_array = line.strip().split(' ')
         r_fin = open(cur_dir + line_array[0], encoding='cp1252')
         e_fin = open(cur_dir + line_array[1], encoding='cp1252')
         for ro, en in zip(r_fin, e_fin):
-            ro = ro.strip().split('> ')[1].split(' </s>')[0]
-            en = en.strip().split('> ')[1].split(' </s>')[0]
+            ro = ro.strip().split('> ')[1].split(' </s>')[0].strip()
+            en = en.strip().split('> ')[1].split(' </s>')[0].strip()
+            if len(ro) == 0 or len(en) == 0:
+                continue
             fout.write(ro + '\t' + en + '\n')
         r_fin.close()
         e_fin.close()
@@ -52,6 +55,7 @@ def process3():
         if start_char != line_array[0]:
             num += 1
             start_char = line_array[0]
+
             if len(wa_lst) > 0:
                 for l in wa_lst:
                     fout.write(l + '\n')
@@ -64,5 +68,6 @@ def process3():
     fout.flush()
     fout.close()
     return
+
 
 process3()
