@@ -341,11 +341,10 @@ class SynAlign(Model):
         cnt = 0
         step = 0
         sess.run(self.eval_iter.initializer)
-
-        st_wa_path = 'data/en-fr-pred-st-wa.txt'
-        ts_wa_path = 'data/en-fr-pred-ts-wa.txt'
-        max_diag_wa_path = 'data/en-fr-pred-max-diag-wa.txt'
-        intersect_wa_path = 'data/en-fr-pred-intersect-wa.txt'
+        st_wa_path = self.p.output_prefix + '-pred-st-wa.txt'
+        ts_wa_path = self.p.output_prefix + '-pred-ts-wa.txt'
+        max_diag_wa_path = self.p.output_prefix + '-pred-max-diag-wa.txt'
+        intersect_wa_path = self.p.output_prefix + '-pred-intersect-wa.txt'
         f_st_wa_out = open(st_wa_path, 'w')
         f_ts_wa_out = open(ts_wa_path, 'w')
         f_max_diag_wa_out = open(max_diag_wa_path, 'w')
@@ -666,6 +665,7 @@ if __name__ == "__main__":
     parser.add_argument('-train_data', dest="train_data", default='data/en-fr/en-fr-sample.txt', help='Name of the run')
     parser.add_argument('-eval_data', dest="eval_data", default='data/en-fr/en-fr-test.txt', help='Name of the run')
     parser.add_argument('-eval_data_wa', dest="eval_data_wa", default='data/en-fr/en-fr-test-wa.txt', help='Name of the run')
+    parser.add_argument('-output_prefix', dest="output_prefix", default='data/en-fr', help='Name of the run')
     parser.add_argument('-embed', dest="embed_loc", default=None, help='Embedding for initialization')
     parser.add_argument('-embed_dim', dest="embed_dim", default=128, type=int, help='Embedding Dimension')
     parser.add_argument('-total', dest="total_sents", default=56974869, type=int,
