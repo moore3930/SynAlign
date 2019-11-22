@@ -342,10 +342,10 @@ class SynAlign(Model):
         step = 0
         sess.run(self.eval_iter.initializer)
 
-        st_wa_path = 'data/en-fr-eval-st-wa.txt'
-        ts_wa_path = 'data/en-fr-eval-ts-wa.txt'
-        max_diag_wa_path = 'data/en-fr-eval-max-diag-wa.txt'
-        diag_wa_path = 'data/en-fr-eval-diag-wa.txt'
+        st_wa_path = 'data/en-fr-pred-st-wa.txt'
+        ts_wa_path = 'data/en-fr-pred-ts-wa.txt'
+        max_diag_wa_path = 'data/en-fr-pred-max-diag-wa.txt'
+        diag_wa_path = 'data/en-fr-pred-diag-wa.txt'
         f_st_wa_out = open(st_wa_path, 'w')
         f_ts_wa_out = open(ts_wa_path, 'w')
         f_max_diag_wa_out = open(max_diag_wa_path, 'w')
@@ -353,7 +353,7 @@ class SynAlign(Model):
         st_align_set = set()
         ts_align_set = set()
         grow_max_diag_align_set = set()
-        grow_diag_align_set = set()
+        intersect_align_set = set()
 
         while 1:
             step = step + 1
@@ -387,10 +387,10 @@ class SynAlign(Model):
             temp_set = get_max_grow_diag_alignment(st_align_score, ts_align_score, sent_num)
             grow_max_diag_align_set.update(temp_set)
 
-            # grow-diag alignment
+            # intersection alignment
             sent_num = cnt
-            temp_set = get_grow_diag_alignment(st_align_score, ts_align_score, sent_num)
-            grow_diag_align_set.update(temp_set)
+            temp_set = get_intersect_alignment(st_align_score, ts_align_score, sent_num)
+            intersect_align_set.update(temp_set)
 
             # update cnt
             cnt += self.p.batch_size
@@ -409,39 +409,37 @@ class SynAlign(Model):
         f_ts_wa_out.close()
 
         for line in grow_max_diag_align_set:
-            if random.random() < 0.9:
-                f_max_diag_wa_out.write(line + '\n')
+            f_max_diag_wa_out.write(line + '\n')
         f_max_diag_wa_out.flush()
         f_max_diag_wa_out.close()
 
-        for line in grow_diag_align_set:
-            if random.random() < 0.9:
-                f_diag_wa_out.write(line + '\n')
+        for line in intersect_align_set:
+            f_diag_wa_out.write(line + '\n')
         f_diag_wa_out.flush()
         f_diag_wa_out.close()
 
         self.fout_results.write("epoch: {}\n".format(epoch))
         print('Write Alignment Done ! ')
-        P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', st_wa_path)
+        P, R, F1, AER = get_wa_score('data/en-fr-valid-wa.txt', st_wa_path)
         print("=== s -> t WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
         self.fout_results.write("=== s -> t WA score ===\n")
         self.fout_results.write("P: {}, R: {}, F1: {}, AER: {}\n".format(P, R, F1, AER))
 
-        P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', ts_wa_path)
+        P, R, F1, AER = get_wa_score('data/en-fr-valid-wa.txt', ts_wa_path)
         print("=== t -> s WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
         self.fout_results.write("=== t -> s WA score ===\n")
         self.fout_results.write("P: {}, R: {}, F1: {}, AER: {}\n".format(P, R, F1, AER))
 
-        P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', max_diag_wa_path)
+        P, R, F1, AER = get_wa_score('data/en-fr-valid-wa.txt', max_diag_wa_path)
         print("=== max diag WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
         self.fout_results.write("=== max diag WA score ===\n")
         self.fout_results.write("P: {}, R: {}, F1: {}, AER: {}\n".format(P, R, F1, AER))
 
-        P, R, F1, AER = get_wa_score('data/en-fr-wa.txt', diag_wa_path)
-        print("=== diag WA score ===")
+        P, R, F1, AER = get_wa_score('data/en-fr-valid-wa.txt', diag_wa_path)
+        print("=== intersection WA score ===")
         print("P: {}, R: {}, F1: {}, AER: {}".format(P, R, F1, AER))
         self.fout_results.write("=== diag WA score ===\n")
         self.fout_results.write("P: {}, R: {}, F1: {}, AER: {}\n".format(P, R, F1, AER))
@@ -609,8 +607,8 @@ class SynAlign(Model):
     def __init__(self, params):
 
         # data file
-        self.path_to_file = "./data/en-fr-sample.txt"
-        self.eval_path_to_file = "./data/en-fr-eval.txt"
+        self.path_to_file = "./data/en-fr/en-fr-merge.txt"
+        self.eval_path_to_file = "./data/en-fr/en-fr-test.txt"
 
         # create tokenizer
         self.create_tokenizer()

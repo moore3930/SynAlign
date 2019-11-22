@@ -51,9 +51,9 @@ def precess1():
     return
 
 def precess2():
-    eval_path_e = '/Users/Moore/Documents/paper/CWA/material/English-French Hansards corpus - NAACL 2003/English-French-1/trial/trial.e'
-    eval_path_f = '/Users/Moore/Documents/paper/CWA/material/English-French Hansards corpus - NAACL 2003/English-French-1/trial/trial.f'
-    eval_path_out = '/Users/Moore/PycharmProjects/SynAlign/data/en-fr-eval.txt'
+    eval_path_e = '/Users/Moore/Documents/paper/CWA/material/English-French Hansards corpus - NAACL 2003/English-French/test/test.e'
+    eval_path_f = '/Users/Moore/Documents/paper/CWA/material/English-French Hansards corpus - NAACL 2003/English-French/test/test.f'
+    eval_path_out = '/Users/Moore/PycharmProjects/SynAlign/data/en-fr-test.txt'
     fout = open(eval_path_out, 'w')
     for e_line, f_line in zip(open(eval_path_e, encoding='cp1252'), open(eval_path_f, encoding='cp1252')):
         e_line = e_line.strip().split('> ')[1].split(' <')[0]
@@ -63,8 +63,8 @@ def precess2():
     fout.close()
 
 def process3():
-    eval_path_wa = '/Users/Moore/Documents/paper/CWA/material/English-French Hansards corpus - NAACL 2003/English-French-1/trial/trial.wa'
-    fout = open('/Users/Moore/PycharmProjects/SynAlign/data/en-fr-wa.txt', 'w')
+    eval_path_wa = '/Users/Moore/Documents/paper/CWA/material/English-French Hansards corpus - NAACL 2003/English-French/answers/test.wa.nonullalign'
+    fout = open('/Users/Moore/PycharmProjects/SynAlign/data/en-fr-test-wa.txt', 'w')
     num = 0
     start_char = '$'
     wa_lst = []
