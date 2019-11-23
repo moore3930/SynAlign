@@ -239,41 +239,41 @@ class SynAlign(Model):
         source_sent_embed, source_att_embed, self.at_soft_score, target_sent_embed, target_att_embed, self.ta_soft_score =\
             self.add_model(source_sent, target_sent, source_mask, target_mask, source_pos_ids, target_pos_ids)
 
-        # # shuffle the batch of sentences
-        # s_sent_shift_list = []
-        # s_mask_shift_list = []
-        # for i in range(1, self.p.num_neg + 1):
-        #     s_sent_shift_list.append(tf.roll(source_sent, shift=[i, 0], axis=[0, 1]))
-        #     s_mask_shift_list.append(tf.roll(source_mask, shift=[i, 0], axis=[0, 1]))
-        # source_neg_sent = tf.stack(s_sent_shift_list, axis=1)    # [?, neg_num, s_len]
-        # source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, s_len]
-        # source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_sent)
-        #
-        # t_sent_shift_list = []
-        # t_mask_shift_list = []
-        # for i in range(1, self.p.num_neg + 1):
-        #     t_sent_shift_list.append(tf.roll(target_sent, shift=[i, 0], axis=[0, 1]))
-        #     t_mask_shift_list.append(tf.roll(target_mask, shift=[i, 0], axis=[0, 1]))
-        # target_neg_sent = tf.stack(t_sent_shift_list, axis=1)    # [?, neg_num, t_len]
-        # target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, neg_num, t_len]
-        # target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_sent)
-
-        # shuffle the batch of sentences embedding
-        s_sent_embed_shift_list = []
+        # shuffle the batch of sentences
+        s_sent_shift_list = []
         s_mask_shift_list = []
         for i in range(1, self.p.num_neg + 1):
-            s_sent_embed_shift_list.append(tf.roll(source_sent_embed, shift=[i, 0, 0], axis=[0, 1, 2]))
+            s_sent_shift_list.append(tf.roll(source_sent, shift=[i, 0], axis=[0, 1]))
             s_mask_shift_list.append(tf.roll(source_mask, shift=[i, 0], axis=[0, 1]))
-        source_neg_embed = tf.stack(s_sent_embed_shift_list, axis=1)    # [?, neg_num, s_len, 128]
+        source_neg_sent = tf.stack(s_sent_shift_list, axis=1)    # [?, neg_num, s_len]
         source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, s_len]
+        source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_sent)
 
-        t_sent_embed_shift_list = []
+        t_sent_shift_list = []
         t_mask_shift_list = []
         for i in range(1, self.p.num_neg + 1):
-            t_sent_embed_shift_list.append(tf.roll(target_sent_embed, shift=[i, 0, 0], axis=[0, 1, 2]))
+            t_sent_shift_list.append(tf.roll(target_sent, shift=[i, 0], axis=[0, 1]))
             t_mask_shift_list.append(tf.roll(target_mask, shift=[i, 0], axis=[0, 1]))
-        target_neg_embed = tf.stack(t_sent_embed_shift_list, axis=1)    # [?, neg_num, t_len, 128]
+        target_neg_sent = tf.stack(t_sent_shift_list, axis=1)    # [?, neg_num, t_len]
         target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, neg_num, t_len]
+        target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_sent)
+
+        # # shuffle the batch of sentences embedding
+        # s_sent_embed_shift_list = []
+        # s_mask_shift_list = []
+        # for i in range(1, self.p.num_neg + 1):
+        #     s_sent_embed_shift_list.append(tf.roll(source_sent_embed, shift=[i, 0, 0], axis=[0, 1, 2]))
+        #     s_mask_shift_list.append(tf.roll(source_mask, shift=[i, 0], axis=[0, 1]))
+        # source_neg_embed = tf.stack(s_sent_embed_shift_list, axis=1)    # [?, neg_num, s_len, 128]
+        # source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, s_len]
+        #
+        # t_sent_embed_shift_list = []
+        # t_mask_shift_list = []
+        # for i in range(1, self.p.num_neg + 1):
+        #     t_sent_embed_shift_list.append(tf.roll(target_sent_embed, shift=[i, 0, 0], axis=[0, 1, 2]))
+        #     t_mask_shift_list.append(tf.roll(target_mask, shift=[i, 0], axis=[0, 1]))
+        # target_neg_embed = tf.stack(t_sent_embed_shift_list, axis=1)    # [?, neg_num, t_len, 128]
+        # target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, neg_num, t_len]
 
         source_embed = tf.concat([tf.expand_dims(source_sent_embed, 1), source_neg_embed], 1)   # [?, num_neg+1, s_len, 128]
         target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
