@@ -76,7 +76,21 @@ class SynAlign(Model):
         source_mask = source_ids > 0
         target_mask = target_ids > 0
 
-        return source_ids, target_ids, source_mask, target_mask
+        # pos id
+        source_max_len = source_mask.sum(1)
+        target_max_len = target_mask.sum(1)
+
+        source_pos_ids = np.array([[i for i in range(1, source_ids.shape[1] + 1)]])
+        source_pos_ids = np.tile(source_pos_ids, [source_ids.shape[0], 1])
+        source_pos_ids = ((source_pos_ids * 2 * np.pi) / source_max_len[:, np.newaxis]).astype(np.int32)     # [?, n]
+        source_pos_ids = np.array([[[np.cos(d), np.sin(d)] for d in line] for line in source_pos_ids], dtype=np.float32)      # [?, n, 2]
+
+        target_pos_ids = np.array([[i for i in range(1, target_ids.shape[1] + 1)]])
+        target_pos_ids = np.tile(target_pos_ids, [target_ids.shape[0], 1])
+        target_pos_ids = ((target_pos_ids * 2 * np.pi) / target_max_len[:, np.newaxis]).astype(np.int32)     # [?, m]
+        target_pos_ids = np.array([[[np.cos(d), np.sin(d)] for d in line] for line in target_pos_ids], dtype=np.float32)      # [?, m, 2]
+
+        return source_ids, target_ids, source_mask, target_mask, source_pos_ids, target_pos_ids
 
     def get_batch(self, path, batch_size, is_train=False):
         dataset = tf.data.TextLineDataset([path])
@@ -85,22 +99,16 @@ class SynAlign(Model):
         dataset = dataset.batch(batch_size)
         iter = dataset.make_initializable_iterator()
         batch = iter.get_next()
-        source_sent, target_sent, source_mask, target_mask = \
-            tf.py_func(self.batch_process, [batch, self.p.max_sent_len], [tf.int32, tf.int32, tf.bool, tf.bool])
-        return source_sent, target_sent, source_mask, target_mask, iter
+        source_sent, target_sent, source_mask, target_mask, source_pos_ids, target_pos_ids = \
+            tf.py_func(self.batch_process, [batch, self.p.max_sent_len], [tf.int32, tf.int32,
+                                                                          tf.bool, tf.bool,
+                                                                          tf.float32, tf.float32])
+        return source_sent, target_sent, source_mask, target_mask, source_pos_ids, target_pos_ids, iter
 
     def init_embedding(self):
         # init pos embedding
-        self.source_pos_emb_table = tf.get_variable(name='source_pos_emb', shape=[100, self.p.embed_dim],
-                                                    initializer=tf.contrib.layers.xavier_initializer())
-        self.target_pos_emb_table = tf.get_variable(name='target_pos_emb', shape=[100, self.p.embed_dim],
-                                                    initializer=tf.contrib.layers.xavier_initializer())
-
-        np_pos_ids = np.array([[i for i in range(1, self.p.max_sent_len + 1)]])
-        source_pos_ids = tf.constant(np_pos_ids, dtype=tf.int32)
-        target_pos_ids = tf.constant(np_pos_ids, dtype=tf.int32)
-        self.source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, source_pos_ids)   # [1, n, 128]
-        self.target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, target_pos_ids)   # [1, m, 128]
+        self.pos_emb_W = tf.get_variable(name='pos_W', shape=[1, 2, self.p.embed_dim],
+                                         initializer=tf.contrib.layers.xavier_initializer())
         print("Position Embedding init done !")
 
         # when target embeddings for initialization is assigned
@@ -131,7 +139,7 @@ class SynAlign(Model):
                                                initializer=tf.contrib.layers.xavier_initializer())
             print("Embedding init done !")
 
-    def add_model(self, source_sent, target_sent, source_mask, target_mask):
+    def add_model(self, source_sent, target_sent, source_mask, target_mask, source_pos_ids, target_pos_ids):
         """
         Creates the Computational Graph
 
@@ -147,8 +155,8 @@ class SynAlign(Model):
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
 
         # add pos embedding
-        source_pos_embed = tf.tile(self.source_pos_embed, [tf.shape(source_sent_embed)[0], 1, 1])
-        target_pos_embed = tf.tile(self.target_pos_embed, [tf.shape(source_sent_embed)[0], 1, 1])
+        source_pos_embed = tf.matmul(source_pos_ids, tf.tile(self.pos_emb_W, [tf.shape(source_sent_embed)[0], 1, 1]))    # [?, n, 2] * [?, 2, 128]
+        target_pos_embed = tf.matmul(target_pos_ids, tf.tile(self.pos_emb_W, [tf.shape(target_sent_embed)[0], 1, 1]))    # [?, n, 2] * [?, 2, 128]
         source_sent_embed += source_sent_embed + source_pos_embed
         target_sent_embed += target_sent_embed + target_pos_embed
 
@@ -180,13 +188,15 @@ class SynAlign(Model):
 
     def build_eval_graph(self):
         # get batch data
-        eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask, self.eval_iter =\
+        eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask, eval_source_pos_ids, eval_target_pos_ids,  self.eval_iter =\
             self.get_batch(self.eval_path_to_file, self.p.batch_size)
         eval_source_sent.set_shape([None, self.p.max_sent_len])
         eval_target_sent.set_shape([None, self.p.max_sent_len])
+        eval_source_pos_ids.set_shape([None, self.p.max_sent_len, 2])
+        eval_target_pos_ids.set_shape([None, self.p.max_sent_len, 2])
 
         _, _, st_align_score, _, _, ts_align_score =\
-            self.add_model(eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask)
+            self.add_model(eval_source_sent, eval_target_sent, eval_source_mask, eval_target_mask, eval_source_pos_ids, eval_target_pos_ids)
 
         self.ts_align = tf.argmax(ts_align_score, 2, output_type=tf.int32) + 1
         self.ts_align = tf.where(eval_target_mask, self.ts_align, tf.zeros(tf.shape(self.ts_align), dtype=tf.int32))    # [?, m]
@@ -214,10 +224,12 @@ class SynAlign(Model):
         """
 
         # get batch data
-        source_sent, target_sent, source_mask, target_mask, self.train_iter =\
+        source_sent, target_sent, source_mask, target_mask, source_pos_ids, target_pos_ids, self.train_iter =\
             self.get_batch(self.path_to_file, self.p.batch_size, is_train=True)
         source_sent.set_shape([None, self.p.max_sent_len])
         target_sent.set_shape([None, self.p.max_sent_len])
+        source_pos_ids.set_shape([None, self.p.max_sent_len, 2])
+        target_pos_ids.set_shape([None, self.p.max_sent_len, 2])
         self.source_sent = source_sent
         self.source_mask = source_mask
         self.target_sent = target_sent
@@ -225,7 +237,7 @@ class SynAlign(Model):
 
         # feed into model
         source_sent_embed, source_att_embed, self.at_soft_score, target_sent_embed, target_att_embed, self.ta_soft_score =\
-            self.add_model(source_sent, target_sent, source_mask, target_mask)
+            self.add_model(source_sent, target_sent, source_mask, target_mask, source_pos_ids, target_pos_ids)
 
         # # shuffle the batch of sentences
         # s_sent_shift_list = []
