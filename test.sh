@@ -1,1 +1,1 @@
-CUDA_VISIBLE_DEVICES=0 python SynAlignSent.py
+CUDA_VISIBLE_DEVICES=1 python SynAlignSent.py -epoch=5 -embed_dim=256 -alpha=0.5 -train_data='data/en-fr/en-fr-merge.txt' -eval_data='data/en-fr/en-fr-test.txt' -eval_data_wa='data/en-fr/en-fr-test-wa.txt' -output_prefix='data/en-fr' 
