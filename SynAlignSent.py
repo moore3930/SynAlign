@@ -90,6 +90,19 @@ class SynAlign(Model):
         return source_sent, target_sent, source_mask, target_mask, iter
 
     def init_embedding(self):
+        # init pos embedding
+        self.source_pos_emb_table = tf.get_variable(name='source_pos_emb', shape=[100, self.p.embed_dim],
+                                                    initializer=tf.contrib.layers.xavier_initializer())
+        self.target_pos_emb_table = tf.get_variable(name='target_pos_emb', shape=[100, self.p.embed_dim],
+                                                    initializer=tf.contrib.layers.xavier_initializer())
+
+        np_pos_ids = np.array([[i for i in range(1, self.p.max_sent_len + 1)]])
+        source_pos_ids = tf.constant(np_pos_ids, dtype=tf.int32)
+        target_pos_ids = tf.constant(np_pos_ids, dtype=tf.int32)
+        self.source_pos_embed = tf.nn.embedding_lookup(self.source_pos_emb_table, source_pos_ids)   # [1, n, 128]
+        self.target_pos_embed = tf.nn.embedding_lookup(self.target_pos_emb_table, target_pos_ids)   # [1, m, 128]
+        print("Position Embedding init done !")
+
         # when target embeddings for initialization is assigned
         if self.p.embed_loc:
             print("Start loading embeddings ... ")
@@ -132,6 +145,12 @@ class SynAlign(Model):
 
         source_sent_embed = tf.nn.embedding_lookup(self.source_emb_table, source_sent)  # [?, n, 128]
         target_sent_embed = tf.nn.embedding_lookup(self.target_emb_table, target_sent)  # [?, m, 128]
+
+        # add pos embedding
+        source_pos_embed = tf.tile(self.source_pos_embed, [tf.shape(source_sent_embed)[0], 1, 1])
+        target_pos_embed = tf.tile(self.target_pos_embed, [tf.shape(source_sent_embed)[0], 1, 1])
+        source_sent_embed += source_sent_embed + source_pos_embed
+        target_sent_embed += target_sent_embed + target_pos_embed
 
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME') + source_sent_embed
