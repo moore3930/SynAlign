@@ -157,8 +157,8 @@ class SynAlign(Model):
         # add pos embedding
         source_pos_embed = tf.matmul(source_pos_ids, tf.tile(self.pos_emb_W, [tf.shape(source_sent_embed)[0], 1, 1]))    # [?, n, 2] * [?, 2, 128]
         target_pos_embed = tf.matmul(target_pos_ids, tf.tile(self.pos_emb_W, [tf.shape(target_sent_embed)[0], 1, 1]))    # [?, n, 2] * [?, 2, 128]
-        source_sent_embed = source_sent_embed + source_pos_embed
-        target_sent_embed = target_sent_embed + target_pos_embed
+        source_key_embed = source_sent_embed + source_pos_embed
+        target_key_embed = target_sent_embed + target_pos_embed
 
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME') + source_sent_embed
@@ -168,7 +168,7 @@ class SynAlign(Model):
         target_mask_tile = tf.tile(tf.expand_dims(target_mask, 1), [1, tf.shape(source_mask)[1], 1])    # [?, n, m]
         mask = tf.logical_and(source_mask_tile, target_mask_tile)    # [?, n, m]
 
-        mul_score = tf.matmul(target_sent_embed, source_sent_embed, transpose_b=True)    # [?, m, n]
+        mul_score = tf.matmul(target_key_embed, source_key_embed, transpose_b=True)    # [?, m, n]
 
         ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), mul_score,
                             tf.ones(tf.shape(mul_score), dtype=tf.float32) * -9999)    # [?, m, n]
