@@ -157,8 +157,8 @@ class SynAlign(Model):
         # add pos embedding
         source_pos_embed = tf.matmul(source_pos_ids, tf.tile(self.pos_emb_W, [tf.shape(source_sent_embed)[0], 1, 1]))    # [?, n, 2] * [?, 2, 128]
         target_pos_embed = tf.matmul(target_pos_ids, tf.tile(self.pos_emb_W, [tf.shape(target_sent_embed)[0], 1, 1]))    # [?, n, 2] * [?, 2, 128]
-        source_sent_embed += source_sent_embed + source_pos_embed
-        target_sent_embed += target_sent_embed + target_pos_embed
+        source_sent_embed = source_sent_embed + source_pos_embed
+        target_sent_embed = target_sent_embed + target_pos_embed
 
         # pooling
         source_sent_embed = tf.layers.average_pooling1d(source_sent_embed, 3, 1, padding='SAME') + source_sent_embed
