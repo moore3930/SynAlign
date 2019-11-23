@@ -648,10 +648,11 @@ class SynAlign(Model):
         # exps records
         result_path = self.p.result_path
         self.fout_results = open(result_path, 'a')
-        exp_name = "====== batch: {} - num_neg: {} - lr: {} - emb_dim: {} ======\n\n".format(self.p.batch_size,
-                                                                                             self.p.num_neg,
-                                                                                             self.p.lr,
-                                                                                             self.p.embed_dim)
+        exp_name = "====== batch: {} - num_neg: {} - lr: {} - emb_dim: {} - alpha: {} ======\n\n".format(self.p.batch_size,
+                                                                                                         self.p.num_neg,
+                                                                                                         self.p.lr,
+                                                                                                         self.p.embed_dim,
+                                                                                                         self.p.alpha)
         self.fout_results.write(exp_name)
         self.fout_results.flush()
 
