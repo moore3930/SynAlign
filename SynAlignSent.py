@@ -393,6 +393,8 @@ class SynAlign(Model):
         grow_max_diag_align_set = set()
         intersect_align_set = set()
 
+        is_save_map = False
+
         while 1:
             step = step + 1
             try:
@@ -403,6 +405,13 @@ class SynAlign(Model):
             except:
                 print('{} Alignments Writing Done ! '.format(cnt))
                 break
+
+            # save alignment map
+            # just save one time each epoch
+            name = "alpha-{}-epoch-{}".format(self.p.alpha, epoch)
+            if not is_save_map:
+                self.save_alignment_map(st_align_score, s_sent, t_sent, name)
+                is_save_map = True
 
             # s -> t word alignment
             sent_num = cnt
