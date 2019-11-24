@@ -4,6 +4,7 @@ from helper import *
 from sklearn.model_selection import train_test_split
 from web.embedding import Embedding
 from web.evaluate import evaluate_on_all
+from matplotlib import pyplot as plt
 
 import tensorflow as tf
 import numpy as np
@@ -336,6 +337,44 @@ class SynAlign(Model):
         f_t.close()
         self.logger.info("Embedding saving done ! ")
 
+    def save_alignment_map(self, align_map, source_sent, target_sent, name):
+        plt.clf()
+        f = plt.figure(figsize=(180, 180))
+        row = 6
+        col = 6
+
+        align_map = np.array(align_map)
+        for i in range(0, row * col):
+            ax = f.add_subplot(row, col, i+1)
+
+            # lenset_xticklabels
+            s_sent_id = [i for i in source_sent[i] if i > 0]
+            s_sent = [self.source_id2word[i] for i in s_sent_id]
+            s_len = len(s_sent)
+            t_sent_id = [i for i in target_sent[i] if i > 0]
+            t_sent = [self.target_id2word[i] for i in t_sent_id]
+            t_len = len(t_sent)
+
+            # add image
+            i = ax.imshow(align_map[i][:s_len, :t_len], cmap='gray', aspect='equal')
+
+            # add labels
+            ax.set_yticks(range(s_len))
+            ax.set_yticklabels(s_sent)
+            ax.set_xticks(range(t_len))
+            ax.set_xticklabels(t_sent, rotation=90)
+            ax.set_xlabel('Target Sequence')
+            ax.set_ylabel('Source Sequence')
+
+        # prob bar
+        cbaxes = f.add_axes([0.2, 0, 0.6, 0.03])
+        cbar = f.colorbar(i, cax=cbaxes, orientation='horizontal')
+        cbar.ax.set_xlabel('Probability', labelpad=2)
+
+        # save
+        HERE = os.path.realpath(os.path.join(os.path.realpath(__file__), '..'))
+        f.savefig(os.path.join(HERE, 'attention_maps', 'align-map-' + str(name) + '.pdf'), bbox_inches='tight')
+
     def get_alignment(self, epoch, sess):
 
         cnt = 0
@@ -617,10 +656,11 @@ class SynAlign(Model):
         # exps records
         result_path = self.p.result_path
         self.fout_results = open(result_path, 'a')
-        exp_name = "====== batch: {} - num_neg: {} - lr: {} - emb_dim: {} ======\n\n".format(self.p.batch_size,
-                                                                                             self.p.num_neg,
-                                                                                             self.p.lr,
-                                                                                             self.p.embed_dim)
+        exp_name = "====== batch: {} - num_neg: {} - lr: {} - emb_dim: {} - alpha: {} ======\n\n".format(self.p.batch_size,
+                                                                                                         self.p.num_neg,
+                                                                                                         self.p.lr,
+                                                                                                         self.p.embed_dim,
+                                                                                                         self.p.alpha)
         self.fout_results.write(exp_name)
         self.fout_results.flush()
 
