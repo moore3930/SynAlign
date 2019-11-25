@@ -114,9 +114,11 @@ class SynAlign(Model):
             # self.target_emb_table = tf.get_variable(name='tar_emb', shape=[self.vocab_target_size, 128],
             #                                    initializer=tf.random_normal_initializer(mean=0, stddev=1))
             self.source_emb_table = tf.get_variable(name='inp_emb', shape=[self.vocab_source_size, self.p.embed_dim],
-                                               initializer=tf.contrib.layers.xavier_initializer())
+                                                    initializer=tf.contrib.layers.xavier_initializer(),
+                                                    regularizer=self.regularizer)
             self.target_emb_table = tf.get_variable(name='tar_emb', shape=[self.vocab_target_size, self.p.embed_dim],
-                                               initializer=tf.contrib.layers.xavier_initializer())
+                                                    initializer=tf.contrib.layers.xavier_initializer(),
+                                                    regularizer=self.regularizer)
             print("Embedding init done !")
 
     def add_model(self, source_sent, target_sent, source_mask, target_mask):
@@ -276,10 +278,10 @@ class SynAlign(Model):
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
 
         # loss = tf.Print(loss, [loss], message='detail of loss', summarize=1000)
-        # if self.regularizer is not None:
-        #     loss += tf.contrib.layers.apply_regularization(
-        #         self.regularizer, tf.get_collection(
-        #             tf.GraphKeys.REGULARIZATION_LOSSES))
+        if self.regularizer is not None:
+            loss += tf.contrib.layers.apply_regularization(
+                self.regularizer, tf.get_collection(
+                    tf.GraphKeys.REGULARIZATION_LOSSES))
 
         self.loss = loss + self.agree_loss * self.p.alpha
 
@@ -665,11 +667,12 @@ class SynAlign(Model):
         # exps records
         result_path = self.p.result_path
         self.fout_results = open(result_path, 'a')
-        exp_name = "====== batch: {} - num_neg: {} - lr: {} - emb_dim: {} - alpha: {} ======\n\n".format(self.p.batch_size,
-                                                                                                         self.p.num_neg,
-                                                                                                         self.p.lr,
-                                                                                                         self.p.embed_dim,
-                                                                                                         self.p.alpha)
+        exp_name = "\n====== batch: {} - num_neg: {} - lr: {} - emb_dim: {} - alpha: {} - l2: {} ======\n".format(self.p.batch_size,
+                                                                                                                  self.p.num_neg,
+                                                                                                                  self.p.lr,
+                                                                                                                  self.p.embed_dim,
+                                                                                                                  self.p.alpha,
+                                                                                                                  self.p.l2)
         self.fout_results.write(exp_name)
         self.fout_results.flush()
 
