@@ -408,7 +408,8 @@ class SynAlign(Model):
 
             # save alignment map
             # just save one time each epoch
-            name = "alpha-{}-epoch-{}".format(self.p.alpha, epoch)
+            name = "batch-{}-neg-{}-lr-{}-alpha-{}-epoch-{}".format(self.p.batch_size, self.p.num_neg, self.p.lr,
+                                                                    self.p.alpha, epoch)
             if not is_save_map:
                 self.save_alignment_map(st_align_score, s_sent, t_sent, name)
                 is_save_map = True
