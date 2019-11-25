@@ -346,7 +346,7 @@ class SynAlign(Model):
         col = 6
 
         align_map = np.array(align_map)
-        for i in range(0, row * col):
+        for i in range(0, min(row * col, align_map.shape[0])):
             ax = f.add_subplot(row, col, i+1)
 
             # lenset_xticklabels
