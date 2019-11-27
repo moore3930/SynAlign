@@ -12,7 +12,7 @@ np.set_printoptions(precision=4)
 
 
 def normalize_1(x):
-    norm = tf.sqrt(tf.reduce_sum(tf.square(x), axis=1, keepdims=True))
+    norm = tf.sqrt(tf.reduce_sum(tf.square(x), axis=2, keepdims=True))
     res = x / norm
     return res
 
