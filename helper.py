@@ -2,6 +2,7 @@ import os, sys, pdb, numpy as np, random, argparse, codecs, pickle, time, json, 
 import gzip, queue, threading, scipy.sparse as sp
 import logging, logging.config, itertools, pathlib
 import unicodedata
+import tensorflow as tf
 
 from pprint 	 import pprint
 from threading   import Thread
@@ -9,6 +10,11 @@ from collections import defaultdict as ddict
 
 np.set_printoptions(precision=4)
 
+
+def normalize_1(x):
+    norm = tf.sqrt(tf.reduce_sum(tf.square(x), axis=1, keepdims=True))
+    res = x / norm
+    return res
 
 def set_gpu(gpus):
 	"""
