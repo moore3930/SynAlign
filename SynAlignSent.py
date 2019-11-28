@@ -430,6 +430,11 @@ class SynAlign(Model):
                     if ts_align[i][j] > 0:
                         ts_align_set.add('num-' + str(sent_num) + ' ' + str(ts_align[i][j]) + ' -> ' + str(j+1))
 
+            avg_align_score = get_avg_align_score(st_align_score, ts_align_score)
+
+            st_align_score = avg_align_score
+            ts_align_score = avg_align_score.transpose((0, 2, 1))
+
             # grow-max-diag alignment
             sent_num = cnt
             temp_set = get_max_grow_diag_alignment(st_align_score, ts_align_score, sent_num)

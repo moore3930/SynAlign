@@ -531,6 +531,13 @@ def get_max_grow_diag_alignment(st_lst, ts_lst, shift_num):
     return alignment_set
 
 
+def get_avg_align_score(st_lst, ts_lst):
+    st_score = np.array(st_lst)
+    ts_score = np.array(ts_lst).transpose((0, 2, 1))
+    avg_score = (st_score + ts_score) / 2
+    return avg_score
+
+
 def get_intersect_alignment(st_lst, ts_lst, shift_num):
 
     def _get_max_score_alignment(map, transpose=False):
