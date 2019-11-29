@@ -215,8 +215,14 @@ class SynAlign(Model):
         for i in range(1, self.p.num_neg + 1):
             s_sent_shift_list.append(tf.roll(source_sent, shift=[i, 0], axis=[0, 1]))
             s_mask_shift_list.append(tf.roll(source_mask, shift=[i, 0], axis=[0, 1]))
-        source_neg_sent = tf.stack(s_sent_shift_list, axis=1)    # [?, neg_num, s_len]
-        source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, neg_num, s_len]
+        for i in range(1, self.p.num_neg + 1):
+            s_sent_shift_list.append(
+                tf.reshape(tf.random.shuffle(tf.reshape(source_sent, [-1]), seed=i), tf.shape(source_sent)))
+            s_mask_shift_list.append(
+                tf.reshape(tf.random.shuffle(tf.reshape(source_mask, [-1]), seed=i), tf.shape(source_mask)))
+
+        source_neg_sent = tf.stack(s_sent_shift_list, axis=1)    # [?, 2 * neg_num, s_len]
+        source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, 2 * neg_num, s_len]
         source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_sent)
 
         t_sent_shift_list = []
@@ -224,8 +230,13 @@ class SynAlign(Model):
         for i in range(1, self.p.num_neg + 1):
             t_sent_shift_list.append(tf.roll(target_sent, shift=[i, 0], axis=[0, 1]))
             t_mask_shift_list.append(tf.roll(target_mask, shift=[i, 0], axis=[0, 1]))
-        target_neg_sent = tf.stack(t_sent_shift_list, axis=1)    # [?, neg_num, t_len]
-        target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, neg_num, t_len]
+        for i in range(1, self.p.num_neg + 1):
+            t_sent_shift_list.append(
+                tf.reshape(tf.random.shuffle(tf.reshape(target_sent, [-1]), seed=i), tf.shape(target_sent)))
+            t_mask_shift_list.append(
+                tf.reshape(tf.random.shuffle(tf.reshape(target_mask, [-1]), seed=i), tf.shape(target_mask)))
+        target_neg_sent = tf.stack(t_sent_shift_list, axis=1)    # [?, 2 * neg_num, t_len]
+        target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, 2 * neg_num, t_len]
         target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_sent)
 
         # # shuffle the batch of sentences embedding
@@ -249,8 +260,8 @@ class SynAlign(Model):
         target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
 
         # logits
-        source_logits = tf.reduce_sum(tf.multiply(source_embed, tf.tile(tf.expand_dims(target_att_embed, 1), [1, self.p.num_neg+1, 1, 1])), 3)  # [?, num_neg+1, s_len]
-        target_logits = tf.reduce_sum(tf.multiply(target_embed, tf.tile(tf.expand_dims(source_att_embed, 1), [1, self.p.num_neg+1, 1, 1])), 3)  # [?, num_neg+1, t_len]
+        source_logits = tf.reduce_sum(tf.multiply(source_embed, tf.tile(tf.expand_dims(target_att_embed, 1), [1, 2 * self.p.num_neg+1, 1, 1])), 3)  # [?, 2 * num_neg + 1, s_len]
+        target_logits = tf.reduce_sum(tf.multiply(target_embed, tf.tile(tf.expand_dims(source_att_embed, 1), [1, 2 * self.p.num_neg+1, 1, 1])), 3)  # [?, 2 * num_neg + 1, t_len]
 
         # labels
         source_pos_labels = tf.expand_dims(tf.ones(tf.shape(source_sent), dtype=tf.float32), 1)    # [?, 1, s_len]
