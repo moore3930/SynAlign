@@ -2,12 +2,30 @@ import os, sys, pdb, numpy as np, random, argparse, codecs, pickle, time, json, 
 import gzip, queue, threading, scipy.sparse as sp
 import logging, logging.config, itertools, pathlib
 import unicodedata
+import tensorflow as tf
 
 from pprint 	 import pprint
 from threading   import Thread
 from collections import defaultdict as ddict
 
 np.set_printoptions(precision=4)
+
+
+def drive_left(pred, max_len):
+    pred = tf.cast(pred, tf.float32)
+    # num_non_zero element in every row
+    num_non_zero = tf.count_nonzero(pred, -1)  #[3 2 3]
+    # flat input and remove all zeros
+    flat_pred = tf.reshape(pred, [-1])
+    mask = tf.math.logical_not(tf.equal(flat_pred, tf.zeros_like(flat_pred)))
+    flat_pred_without_zero = tf.boolean_mask(flat_pred, mask) #[2. 3. 4. 1. 5. 2. 3. 1.]
+    # create a ragged tensor and change it to tensor, rows will be padded to max length
+    ragged_pred = tf.RaggedTensor.from_row_lengths(values=flat_pred_without_zero, row_lengths=num_non_zero)
+    paded_pred = ragged_pred.to_tensor(default_value=0.)
+    paded_pred = tf.cast(paded_pred, tf.int32)
+    padding = [[0, 0], [0, max_len-tf.shape(paded_pred)[1]]]
+    paded_pred = tf.pad(paded_pred, padding, 'CONSTANT', constant_values=0)
+    return paded_pred
 
 
 def set_gpu(gpus):

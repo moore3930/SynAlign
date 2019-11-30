@@ -198,8 +198,10 @@ class SynAlign(Model):
         # get batch data
         source_sent, target_sent, source_mask, target_mask, self.train_iter =\
             self.get_batch(self.path_to_file, self.p.batch_size, is_train=True)
-        source_sent.set_shape([None, self.p.max_sent_len])
-        target_sent.set_shape([None, self.p.max_sent_len])
+        source_sent.set_shape([self.p.batch_size, self.p.max_sent_len])
+        target_sent.set_shape([self.p.batch_size, self.p.max_sent_len])
+        source_mask.set_shape([self.p.batch_size, self.p.max_sent_len])
+        target_mask.set_shape([self.p.batch_size, self.p.max_sent_len])
         self.source_sent = source_sent
         self.source_mask = source_mask
         self.target_sent = target_sent
@@ -217,13 +219,12 @@ class SynAlign(Model):
             s_mask_shift_list.append(tf.roll(source_mask, shift=[i, 0], axis=[0, 1]))
         for i in range(1, self.p.num_neg + 1):
             s_sent_shift_list.append(
-                tf.reshape(tf.random.shuffle(tf.reshape(source_sent, [-1]), seed=i), tf.shape(source_sent)))
-            s_mask_shift_list.append(
-                tf.reshape(tf.random.shuffle(tf.reshape(source_mask, [-1]), seed=i), tf.shape(source_mask)))
+                drive_left(tf.reshape(tf.random.shuffle(tf.reshape(source_sent, [-1]), seed=i), tf.shape(source_sent)), self.p.max_sent_len))
+            s_mask_shift_list.append(source_mask)
 
         source_neg_sent = tf.stack(s_sent_shift_list, axis=1)    # [?, 2 * neg_num, s_len]
         source_neg_mask = tf.stack(s_mask_shift_list, axis=1)    # [?, 2 * neg_num, s_len]
-        source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_sent)
+        source_neg_embed = tf.nn.embedding_lookup(self.source_emb_table, source_neg_sent, self.p.max_sent_len)
 
         t_sent_shift_list = []
         t_mask_shift_list = []
@@ -232,9 +233,9 @@ class SynAlign(Model):
             t_mask_shift_list.append(tf.roll(target_mask, shift=[i, 0], axis=[0, 1]))
         for i in range(1, self.p.num_neg + 1):
             t_sent_shift_list.append(
-                tf.reshape(tf.random.shuffle(tf.reshape(target_sent, [-1]), seed=i), tf.shape(target_sent)))
-            t_mask_shift_list.append(
-                tf.reshape(tf.random.shuffle(tf.reshape(target_mask, [-1]), seed=i), tf.shape(target_mask)))
+                drive_left(tf.reshape(tf.random.shuffle(tf.reshape(target_sent, [-1]), seed=i), tf.shape(target_sent)), self.p.max_sent_len))
+            t_mask_shift_list.append(target_mask)
+
         target_neg_sent = tf.stack(t_sent_shift_list, axis=1)    # [?, 2 * neg_num, t_len]
         target_neg_mask = tf.stack(t_mask_shift_list, axis=1)    # [?, 2 * neg_num, t_len]
         target_neg_embed = tf.nn.embedding_lookup(self.target_emb_table, target_neg_sent)
@@ -598,6 +599,9 @@ class SynAlign(Model):
         while 1:
             step = step + 1
             # loss, _ = sess.run([self.loss, self.train_op])
+            # loss, agree_loss, _, source_mask, target_sent, target_mask, at_soft_score = \
+            #     sess.run([self.loss, self.agree_loss, self.train_op, self.source_mask,
+            #               self.target_sent, self.target_mask, self.at_soft_score])
             try:
                 loss, agree_loss, _, source_mask, target_sent, target_mask, at_soft_score =\
                     sess.run([self.loss, self.agree_loss, self.train_op,  self.source_mask,
