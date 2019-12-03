@@ -283,7 +283,9 @@ class SynAlign(Model):
         # agree loss
         agree_loss = tf.keras.losses.MSE(self.at_soft_score, tf.transpose(self.ta_soft_score, perm=[0, 2, 1]))  # [?, n]
         # self.agree_loss = tf.reduce_mean(tf.reduce_sum(agree_loss, 1))
-        self.agree_loss = tf.reduce_sum(agree_loss)
+        self.agree_loss = tf.reduce_sum(agree_loss) * self.p.alpha
+        self.cwe_loss = (tf.reduce_sum(tf.keras.losses.MSE(source_att_embed, target_sent_embed)) +\
+                        tf.reduce_sum(tf.keras.losses.MSE(target_att_embed, source_sent_embed))) * self.p.beta
 
         loss = tf.reduce_mean(tf.reduce_sum(source_loss, 2)) + tf.reduce_mean(tf.reduce_sum(target_loss, 2))
 
@@ -293,7 +295,7 @@ class SynAlign(Model):
         #         self.regularizer, tf.get_collection(
         #             tf.GraphKeys.REGULARIZATION_LOSSES))
 
-        self.loss = loss + self.agree_loss * self.p.alpha
+        self.loss = loss + self.agree_loss + self.cwe_loss
 
         return
 
@@ -603,8 +605,8 @@ class SynAlign(Model):
             #     sess.run([self.loss, self.agree_loss, self.train_op, self.source_mask,
             #               self.target_sent, self.target_mask, self.at_soft_score])
             try:
-                loss, agree_loss, _, source_mask, target_sent, target_mask, at_soft_score =\
-                    sess.run([self.loss, self.agree_loss, self.train_op,  self.source_mask,
+                loss, agree_loss, cwe_loss, _, source_mask, target_sent, target_mask, at_soft_score =\
+                    sess.run([self.loss, self.agree_loss, self.cwe_loss, self.train_op,  self.source_mask,
                               self.target_sent, self.target_mask, self.at_soft_score])
             except:
                 break
@@ -613,13 +615,14 @@ class SynAlign(Model):
             cnt += self.p.batch_size
             if step % 10 == 0:
                 self.logger.info(
-                    'E:{} (Sents: {}/{} [{}]): Train Loss \t{:.5}\t{:.5}\t{}\t{:.5}'.format(
+                    'E:{} (Sents: {}/{} [{}]): Train Loss \t{:.5}\t{:.5}\t{:.5}\t{}\t{:.5}'.format(
                         epoch,
                         cnt,
                         10000,
                         round(cnt / 10000 * 100, 1),
                         np.mean(losses),
                         agree_loss,
+                        cwe_loss,
                         self.p.name,
                         self.best_int_avg))
             en = time.time()
@@ -732,7 +735,8 @@ if __name__ == "__main__":
     parser.add_argument('-eval_data_wa', dest="eval_data_wa", default='data/en-fr/en-fr-test-wa.txt', help='Name of the run')
     parser.add_argument('-output_prefix', dest="output_prefix", default='data/en-fr', help='Name of the run')
     parser.add_argument('-result_path', dest="result_path", default='data/results.txt', help='Name of the run')
-    parser.add_argument('-alpha', dest="alpha", default=1.0, type=float, help='Name of the run')
+    parser.add_argument('-alpha', dest="alpha", default=0.1, type=float, help='Name of the run')
+    parser.add_argument('-beta', dest="beta", default=0.1, type=float, help='Name of the run')
     parser.add_argument('-embed', dest="embed_loc", default=None, help='Embedding for initialization')
     parser.add_argument('-embed_dim', dest="embed_dim", default=128, type=int, help='Embedding Dimension')
     parser.add_argument('-total', dest="total_sents", default=56974869, type=int,
