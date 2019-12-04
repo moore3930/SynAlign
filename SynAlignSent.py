@@ -214,9 +214,9 @@ class SynAlign(Model):
         # shuffle the batch of sentences
         s_sent_shift_list = []
         s_mask_shift_list = []
-        for i in range(1, self.p.num_neg + 1):
-            s_sent_shift_list.append(tf.roll(source_sent, shift=[i, 0], axis=[0, 1]))
-            s_mask_shift_list.append(tf.roll(source_mask, shift=[i, 0], axis=[0, 1]))
+        # for i in range(1, self.p.num_neg + 1):
+        #     s_sent_shift_list.append(tf.roll(source_sent, shift=[i, 0], axis=[0, 1]))
+        #     s_mask_shift_list.append(tf.roll(source_mask, shift=[i, 0], axis=[0, 1]))
         for i in range(1, self.p.num_neg + 1):
             s_sent_shift_list.append(
                 drive_left(tf.reshape(tf.random.shuffle(tf.reshape(source_sent, [-1]), seed=i), tf.shape(source_sent)), self.p.max_sent_len))
@@ -228,9 +228,9 @@ class SynAlign(Model):
 
         t_sent_shift_list = []
         t_mask_shift_list = []
-        for i in range(1, self.p.num_neg + 1):
-            t_sent_shift_list.append(tf.roll(target_sent, shift=[i, 0], axis=[0, 1]))
-            t_mask_shift_list.append(tf.roll(target_mask, shift=[i, 0], axis=[0, 1]))
+        # for i in range(1, self.p.num_neg + 1):
+        #     t_sent_shift_list.append(tf.roll(target_sent, shift=[i, 0], axis=[0, 1]))
+        #     t_mask_shift_list.append(tf.roll(target_mask, shift=[i, 0], axis=[0, 1]))
         for i in range(1, self.p.num_neg + 1):
             t_sent_shift_list.append(
                 drive_left(tf.reshape(tf.random.shuffle(tf.reshape(target_sent, [-1]), seed=i), tf.shape(target_sent)), self.p.max_sent_len))
@@ -261,8 +261,8 @@ class SynAlign(Model):
         target_embed = tf.concat([tf.expand_dims(target_sent_embed, 1), target_neg_embed], 1)   # [?, num_neg+1, t_len, 128]
 
         # logits
-        source_logits = tf.reduce_sum(tf.multiply(source_embed, tf.tile(tf.expand_dims(target_att_embed, 1), [1, 2 * self.p.num_neg+1, 1, 1])), 3)  # [?, 2 * num_neg + 1, s_len]
-        target_logits = tf.reduce_sum(tf.multiply(target_embed, tf.tile(tf.expand_dims(source_att_embed, 1), [1, 2 * self.p.num_neg+1, 1, 1])), 3)  # [?, 2 * num_neg + 1, t_len]
+        source_logits = tf.reduce_sum(tf.multiply(source_embed, tf.tile(tf.expand_dims(target_att_embed, 1), [1, self.p.num_neg+1, 1, 1])), 3)  # [?, 2 * num_neg + 1, s_len]
+        target_logits = tf.reduce_sum(tf.multiply(target_embed, tf.tile(tf.expand_dims(source_att_embed, 1), [1, self.p.num_neg+1, 1, 1])), 3)  # [?, 2 * num_neg + 1, t_len]
 
         # labels
         source_pos_labels = tf.expand_dims(tf.ones(tf.shape(source_sent), dtype=tf.float32), 1)    # [?, 1, s_len]
