@@ -1,6 +1,24 @@
 import os
 import re
 
+def precess0():
+
+    path = '/Users/Moore/Documents/paper/CWA/material/English-French Hansards corpus - NAACL 2003/English-French-2/training/'
+    file_path = '/Users/Moore/Documents/paper/CWA/material/English-French Hansards corpus - NAACL 2003/English-French-2/FilePairs.training'
+    fout = open(path + '/en-fr-lower.txt', 'w')
+
+    for file_pair in open(file_path):
+        en_file = file_pair.strip().split(' ')[0]
+        fr_file = file_pair.strip().split(' ')[1]
+        for en_line, fr_line in zip(open(path + en_file, encoding='cp1252'), open(path + fr_file, encoding='cp1252')):
+            en_line = en_line.strip().lower()
+            fr_line = fr_line.strip().lower()
+            fout.write(en_line + '\t' + fr_line + '\n')
+    fout.flush()
+    fout.close()
+
+    return
+
 def precess1():
 
     path = '/Users/Moore/Documents/paper/CWA/material/English-French Hansards corpus - NAACL 2003/English-French-2/training'
@@ -86,6 +104,6 @@ def process3():
     fout.close()
     return
 
-process3()
+precess0()
 
 
