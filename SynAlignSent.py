@@ -113,10 +113,12 @@ class SynAlign(Model):
             #                                    initializer=tf.random_normal_initializer(mean=0, stddev=1))
             # self.target_emb_table = tf.get_variable(name='tar_emb', shape=[self.vocab_target_size, 128],
             #                                    initializer=tf.random_normal_initializer(mean=0, stddev=1))
-            self.source_emb_table = tf.get_variable(name='inp_emb', shape=[self.vocab_source_size, self.p.embed_dim],
-                                               initializer=tf.contrib.layers.xavier_initializer())
-            self.target_emb_table = tf.get_variable(name='tar_emb', shape=[self.vocab_target_size, self.p.embed_dim],
-                                               initializer=tf.contrib.layers.xavier_initializer())
+            # self.source_emb_table = tf.get_variable(name='inp_emb', shape=[self.vocab_source_size, self.p.embed_dim],
+            #                                    initializer=tf.contrib.layers.xavier_initializer())
+            # self.target_emb_table = tf.get_variable(name='tar_emb', shape=[self.vocab_target_size, self.p.embed_dim],
+            #                                    initializer=tf.contrib.layers.xavier_initializer())
+            self.source_emb_table = tf.random_uniform([self.vocab_source_size, self.p.embed_dim], -1.0, 1.0)
+            self.target_emb_table = tf.random_uniform([self.vocab_target_size, self.p.embed_dim], -1.0, 1.0)
             print("Embedding init done !")
 
     def add_model(self, source_sent, target_sent, source_mask, target_mask):
