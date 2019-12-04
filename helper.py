@@ -194,20 +194,9 @@ def unicode_to_ascii(s):
 
 
 def preprocess_sentence(w):
-    w = w.lower()
-	# w = unicode_to_ascii(w.lower().strip())
-	# w = re.sub(r"([?.!,¿])", r" \1 ", w)
-	# w = re.sub(r'[" "]+', " ", w)
-	#
-	# # replacing everything with space except (a-z, A-Z, ".", "?", "!", ",")
-	# w = re.sub(r"[^a-zA-Z?.!,¿]+", " ", w)
-	#
-	# w = w.rstrip().strip()
-	#
-	# # adding a start and an end token to the sentence
-	# # so that the model know when to start and stop predicting.
-	# # w = '<start> ' + w + ' <end>'
-	return w
+    w = w.strip().lower()
+
+    return w
 
 
 def max_length(tensor):
