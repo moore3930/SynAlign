@@ -143,6 +143,7 @@ class SynAlign(Model):
         mask = tf.logical_and(source_mask_tile, target_mask_tile)    # [?, n, m]
 
         mul_score = tf.matmul(target_sent_embed, source_sent_embed, transpose_b=True)    # [?, m, n]
+        mul_score = mul_score / pow(self.p.embed_dim, 0.5)
 
         ta_score = tf.where(tf.transpose(mask, perm=[0, 2, 1]), mul_score,
                             tf.ones(tf.shape(mul_score), dtype=tf.float32) * -9999)    # [?, m, n]
