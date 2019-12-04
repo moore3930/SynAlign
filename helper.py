@@ -194,6 +194,7 @@ def unicode_to_ascii(s):
 
 
 def preprocess_sentence(w):
+    w = w.lower()
 	# w = unicode_to_ascii(w.lower().strip())
 	# w = re.sub(r"([?.!,¿])", r" \1 ", w)
 	# w = re.sub(r'[" "]+', " ", w)
